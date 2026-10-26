@@ -1,0 +1,24 @@
+Package: termeffects
+Title: Term Plots and Simultaneous Confidence Bands for Interaction
+    Surfaces
+Version: 0.0.0.9000
+Authors@R: c(
+    person("Brigitte", "Mueller", , "brigitte.mueller@uhn.ca", role = c("aut", "cre")),
+    person("Lukas", "Bolsinger", role = "aut")
+  )
+Description: Computes adjusted predictions with simultaneous confidence
+    bands over prediction curves and two-variable interaction surfaces,
+    including parameterized (transformed) predictor coordinates, and
+    visualizes them as term plots and heatmaps.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3
+Suggests: 
+    ggeffects,
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
+Imports: 
+    ggplot2,
+    insight,
+    stats
