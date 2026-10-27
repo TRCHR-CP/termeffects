@@ -1,0 +1,255 @@
+---
+title: "p-ggeffects: additional features"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{p-ggeffects: additional features}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r set-options, echo = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  dev = "png",
+  fig.width = 7,
+  fig.height = 3.5,
+  message = FALSE,
+  warning = FALSE
+)
+options(width = 800)
+
+pkgs <- c(
+  "ggplot2",
+  "splines",
+  "gridExtra",
+  "patchwork",
+  "see",
+  "survival",
+  "datawizard",
+  "htmltools",
+  "ggeffects",
+  "rms"
+)
+
+# if (!all(vapply(pkgs, requireNamespace, quietly = TRUE, FUN.VALUE = logical(1L)))) {
+#   knitr::opts_chunk$set(eval = TRUE)
+# }
+
+knitr::opts_chunk$set(
+  eval = TRUE,
+  collapse = TRUE,
+  include = TRUE,
+  comment = "#>",
+  dev = "png",
+  fig.width = 7,
+  fig.height = 3.5,
+  message = FALSE,
+  warning = FALSE,
+  results = "markup"
+)
+
+
+
+
+library(rms)
+library(splines)
+```
+
+```{r echo=FALSE, message=FALSE}
+library(htmltools)
+# callout_tip <- function(header = NULL, ...) {
+#   div(
+#     class = "callout-tip",
+#     tags$h1(
+#       tags$img(src = "../man/figures/summary.png", width = "20", height = "17", style = "vertical-align:middle"), # nolint
+#       header
+#     ),
+#     ...
+#   )
+# }
+# includeCSS("../man/figures/callout.css")
+```
+
+
+# parameterized_model objects
+
+## Overview
+A `parameterized_model` is a data structure consiting of a tuple of a fitted regression
+model, and a collection of maps that parameterize the continuous predictive variables
+of the model. Moreover, there exists some auxiliary tracked iformation, ie. new parameters,
+and a parameterization history.
+
+The primary objective of parameterized models is the visualization of higher order data in terms of 
+lower order parameteric families via marginalization. As an example, consider the fitted regression model:
+$$
+y = f(x_1, \ldots, x_n; \beta)\quad\text{ with parameterizations}\quad x_i = h_i(z_1, \ldots, z_m)
+$$
+Viewing the regression model as a function, notice that the data of the parameterized model determines 
+the data of a model by pulling back by the $h_i$. We do note however, that the observed data for which 
+$f_\beta = f(-; \beta)$ was fitted may not be contained in the image of $h = (h_i)_i$, and so the parameterized model
+$f_\beta \circ h$ is almost never determined by the initial observations. For this reason, this parameterization
+is primarily a tool for developing intuitions and visualizations. 
+
+Indeed, in sufficiently nice scenarios (for instance if $h$ is smooth), the rank of the parameterized
+model (viewed as the composition $f_\beta \circ h$) is less than or equal to the rank of $f_\beta$.
+Particularly, by fixing arguments in $z$ (to obtain planes), we obtain more varied marginalizations
+of $f_\beta$.
+
+## Simple Example
+
+Suppose we have some regression model $y \sim f_\beta(\operatorname{weight}, \operatorname{height}, \ldots)$. With parameterizations $(t, c, \ldots) \mapsto (ct^2, t, \ldots) = (\operatorname{weight}(t), \operatorname{height}(t), \ldots)$ (where the other function are the identity), we obtain co-level sets in c and $\ldots$ of subsets with fixed BMI,
+and co-level sets in $t$ and $\ldots$ of subsets with fixed height, but variable weight and BMI.
+
+```{r}
+
+w <- rnorm(500, mean = 70, sd = 4)
+h <- rnorm(500, mean = 170, sd = 10)
+
+a <- rnorm(500)
+
+y <- a + w/h^2 + h + w + w^2 * h + rnorm(500)
+
+
+# model example
+model <- lm(y ~ splines::ns(w,3) + splines::ns(h, 3) + splines::ns(w,3) %ia% splines::ns(h,4) + a)
+
+# parameterize model
+pmodel1 <- parameterize(model, parameterizations = list(w = \(t,c) c*t^2, h = \(t) t))
+
+# parameterized model attributes
+print(pmodel1, show_history = TRUE)
+
+# underlying model
+original_model(pmodel1)
+
+# model parameterizations
+parameterizations(pmodel1)
+
+# new model variables
+parameter_variables(pmodel1)
+```
+
+Furthermore, for a data grid `data = data.frame(t = ..., c = ..., a = ...)`, with `predict(pmodel, newdata = data)`, we obtain predictions from the mechanism:
+
+```{r}
+# predict.parameterized_model <- function(object, newdata, ...) {
+#  ...
+#  
+#  newdata <- parameterize_data(object, newdata)
+#
+#  predict(object$model, newdata = newdata, ...)
+#}
+
+df <- as.data.frame(
+    expand.grid(t = 150:200, c = c(18, 20, 22), a = 0)
+  )
+  
+head(parameterize_data(pmodel, newdata = df))
+
+head(predict(pmodel, newdata = df))
+
+```
+where `parameterize` data evaluates the parameterization on the new data. 
+
+## ggpredict with parameterized_models.
+
+`ggpredict()`, `ggeffect()`, `ggaverage()` and `ggemmeans()` are all implemented for parameterized_model objects. As 
+with fitted regression models, the user specifies their primary terms of interest `ggpredict(model, terms, ...)` together
+with auxiliary options. These terms are variables of the parameterizations, or those untransformed variables:
+```
+ggpredict(pmodel, terms = c("t", "c [1, 2, 3]", ...), ...)
+```
+For standard regression models, for unconstrained terms--such as "t"--bounds, and regularly spaced sample points are determined by the data (by taking either the $5\%$ to $95\%$ quantiles as the bounds, or the extrema of the observations). As discussed above, such a method does not extend to parameterized_models. Rather, for all new parameter variables, the minimum square (centred at the origin in the parameter space) such that the minimum square cover of its image covers the extrema of the observations is computed. Where this is not possible (consider a parameterized point or circle), we take the domain of interest to be the image of our parameterization.
+
+## ggpredict_layer objects
+Given some base `ggeffects` object (an adjusted marginalized prediction grid as returned by ggpredict, or one of the other methods), a `ggeffects_layer` object is a list of `ggeffects` object, where the underlying models of each non-base object is a 'parameterization' of the base objects underlying model subject to some restrictions:
+ - the auxiliary variables are all equal to those of the base (facet, panel, grid, response_level)
+ - only the two primary variables were parameterized
+ - the total number of parameters of each parameterization does not increase
+In particular, each layer either induces a 1-parametric curve or 2-parameteric curve (which induces a set of 1-parametric curves) in the domain of the base model.
+
+Ex:
+``` {r}
+x <- rnorm(500)
+z <- rnorm(500)
+
+y <- x - z + rnorm(500, sd = 2)
+
+
+model <- lm(y ~ x + z)
+pmodel <- parameterize(model, list(x = "t^3 + s", z = "s - t"))
+
+pout <- ggpredict(pmodel, terms = c("t", "s"))
+
+ppout1 <- ggpredict(pout, 
+                    parameterization = list(t = "sin(w)", 
+                                            s = "cos(w)"), 
+                    terms = "w")
+                    
+ppout2 <- ggpredict(pout, 
+                    parameterization = list(t = "r * sin(w)", 
+                                            s = "r * cos(w)"), 
+                    terms = c("w", "r [n = 3]"))
+                    
+      
+ppout1
+
+ppout2
+           
+plot(ppout1, show_kernel_density = TRUE, threshold_prob = 0.975)
+   
+plot(ppout2)                    
+                           
+```
+
+
+# Plotting
+trcp-ggeffects extends the plotting feature of ggeffects to _two_ additional plot types: heatmaps, and heatmaps with 
+overlays of 1-parametric curves. Additionally, as a substitute for plotting observed data, estimates the density of the
+initial observations using kernel smoothing, and computes the ambient density.
+
+In order to accomodate heatmaps, several grid generation methods were deprecated, namely weights averaging. Additonally, 
+in favour of regular grids (for the purpose of heatmap plotting), the more adaptive grid generation methods from ggeffects
+were removed. 
+
+
+
+
+```{r}
+
+w <- rnorm(500, mean = 7000, sd = 4)
+h <- rnorm(500, mean = 170, sd = 10)
+
+a <- rnorm(500)
+
+y <- a + w/h^2 + h + w + w^2 * h + rnorm(500)
+
+
+# model example
+model <- lm(y ~ splines::ns(w,3) + splines::ns(h, 3) + splines::ns(w,3) %ia% splines::ns(h,4) + a)
+
+# parameterize model
+pmodel1 <- parameterize(model, parameterizations = list(w = \(t,c) c*t^2, h = \(t) t))
+
+pout <- ggpredict(pmodel1, terms =  c("c", "t", "a [1]"))
+
+plot(pout, "heatmap")
+
+```
+
+
+
+# Simultanrous confidence bands
+
+
+
+
+
+
+
+
+
+
+
+
