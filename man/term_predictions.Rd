@@ -14,12 +14,15 @@ term_predictions(
   data = NULL,
   ci_level = 0.95,
   scale = c("response", "link"),
-  nsim = 10000
+  ci_method = c("analytic", "bootstrap"),
+  ci_scope = c("global", "faceted", "curve"),
+  nsim = 10000,
+  nboot = 1000
 )
 }
 \arguments{
-\item{model}{A fitted model (\code{lm}, \code{glm}, \code{lmerMod}, \code{glmerMod}, \code{coxph},
-or \code{mgcv::gam}).}
+\item{model}{A fitted model (\code{lm}, \code{glm}, \code{rms::orm}, \code{lmerMod},
+\code{glmerMod}, \code{coxph}, or \code{mgcv::gam}) or a \link[=parameterize]{parameterized model}.}
 
 \item{terms}{Character vector with the names of the focal variables.}
 
@@ -34,7 +37,8 @@ explicit \code{values}. Points are spread evenly over the observed range.}
 
 \item{newdata}{Optional grid to predict on, e.g. from \code{\link[=term_grid]{term_grid()}} or a
 hand-made data frame tracing a curve through a surface. If given,
-\code{values}, \code{at} and \code{n} are ignored. It must contain all predictors.}
+\code{values}, \code{at} and \code{n} are ignored. It must contain all predictors (or,
+for a parameterized model, the variables of its parameterizations).}
 
 \item{data}{The data the model was fitted on. Only needed if it cannot be
 recovered from the model call.}
@@ -46,19 +50,37 @@ recovered from the model call.}
 the mean outcome for \code{rms::orm} models); \code{"link"} gives them on the
 scale of the linear predictor.}
 
-\item{nsim}{Number of simulation draws for the simultaneous critical value.}
+\item{ci_method}{\code{"analytic"} (default) or \code{"bootstrap"}; see the section
+on how the intervals are computed.}
+
+\item{ci_scope}{Over which points the band is simultaneous: \code{"global"}
+(default) all grid points together; \code{"faceted"} separately within each
+combination of the third and later focal variables; \code{"curve"} separately
+for each curve, i.e. each combination of the second and later focal
+variables. Narrower scopes give narrower bands, which only hold within
+each facet or curve.}
+
+\item{nsim}{Number of simulation draws for the analytic simultaneous
+critical value.}
+
+\item{nboot}{Number of bootstrap refits for \code{ci_method = "bootstrap"}.}
 }
 \value{
-A data frame of class \code{term_predictions} with the grid columns and
+A data frame of class \code{term_predictions} with the grid columns
+(for a parameterized model also the predictors computed from them) and
 \itemize{
 \item \code{estimate}: the prediction,
-\item \code{std.error}: its standard error \strong{on the link scale},
+\item \code{std.error}: its standard error on the scale the intervals are
+computed on (the link scale, except for the mean of \code{orm} models and
+for bootstrap intervals of the \code{orm} mean, where it is the mean scale),
 \item \code{conf.low}, \code{conf.high}: pointwise interval,
 \item \code{band.low}, \code{band.high}: simultaneous band.
 }
 
-Attributes: \code{critical_value} (simultaneous), \code{pointwise_critical_value},
-\code{ci_level}, \code{df}, \code{scale}, \code{focal}, \code{held}.
+Attributes include \code{critical_value} (simultaneous; one per facet or curve
+if \code{ci_scope} is not \code{"global"}), \code{pointwise_critical_value},
+\code{ci_level}, \code{ci_method}, \code{ci_scope}, \code{scale}, \code{focal}, \code{held},
+\code{held_rule} and the \code{model}.
 }
 \description{
 Computes model predictions over a grid of focal variables, holding all
@@ -73,28 +95,41 @@ grid points at once with probability \code{ci_level}.
 
 Use the pointwise interval to make a statement about one point. Use the
 simultaneous band to judge the shape of a whole curve or surface, for
-example whether a flat line or a reference curve fits inside it.
-
-Both intervals are computed on the link scale (e.g. log-odds) and then
-transformed, so on the response scale they always respect its limits
-(e.g. probabilities stay within 0 and 1).
+example whether a flat line or a reference curve fits inside it (see
+\code{\link[=test_simultaneous_predictions]{test_simultaneous_predictions()}}).
 
 The simultaneous band is simultaneous over the grid points supplied, with
 the other predictors held at the stated values. A finer grid gives a band
 that is closer to one over the whole continuous range.
-
-Cox models: the estimate is the hazard ratio (or log hazard ratio
-with \code{scale = "link"}) relative to a subject with average values of the
-model's design-matrix columns, matching \code{predict(type = "lp")}.
-
-\code{rms::orm} models: the link scale is rms's linear predictor (using the
-model's reference intercept) and the response scale is the mean outcome,
-from \code{Hmisc::Mean()}. Intervals are computed for the linear predictor and
-transformed, so they stay within the observed range of the outcome. As in
-\code{rms::Predict(fit, fun = Mean(fit))}, they include the uncertainty of the
-covariate effects and the reference intercept, but not that of the other
-intercepts.
 }
+\section{How the intervals are computed}{
+
+With \code{ci_method = "analytic"} (default), intervals come from the
+coefficients' covariance matrix. They are computed on the link scale
+(e.g. log-odds) and then transformed, so they respect the limits of the
+outcome (e.g. probabilities stay within 0 and 1). The simultaneous critical
+value is found by simulating from the joint distribution of the estimates.
+
+With \code{ci_method = "bootstrap"}, the model is refitted \code{nboot} times on
+resampled data (for \code{rms} fits with \code{\link[rms:bootcov]{rms::bootcov()}}, which needs the
+model fitted with \verb{x = TRUE, y = TRUE}). Standard errors are the standard
+deviations of the bootstrap predictions, and the simultaneous critical
+value is the \code{ci_level} quantile of the largest standardized deviation of
+a bootstrap curve from the estimate (a "sup-t" band). Not available for
+mixed models.
+
+\code{rms::orm} models on the response scale (the mean outcome): the analytic
+intervals use the delta method with the full covariance matrix, i.e. the
+uncertainty of \emph{all} intercepts as well as the covariate effects, as
+\code{rms::Mean(fit)(X = , conf.int = )} does. They are clipped to the observed
+outcome range. On the link scale the intervals are for rms's linear
+predictor (reference intercept plus covariate effects).
+
+Cox models: the estimate is the hazard ratio (or log hazard ratio with
+\code{scale = "link"}) relative to a subject with average values of the
+model's design-matrix columns, matching \code{predict(type = "lp")}.
+}
+
 \examples{
 fit <- lm(mpg ~ splines::ns(hp, 3) * wt + am, data = mtcars)
 set.seed(1)

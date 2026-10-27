@@ -9,47 +9,74 @@
 #'
 #' Use the pointwise interval to make a statement about one point. Use the
 #' simultaneous band to judge the shape of a whole curve or surface, for
-#' example whether a flat line or a reference curve fits inside it.
-#'
-#' Both intervals are computed on the link scale (e.g. log-odds) and then
-#' transformed, so on the response scale they always respect its limits
-#' (e.g. probabilities stay within 0 and 1).
+#' example whether a flat line or a reference curve fits inside it (see
+#' [test_simultaneous_predictions()]).
 #'
 #' The simultaneous band is simultaneous over the grid points supplied, with
 #' the other predictors held at the stated values. A finer grid gives a band
 #' that is closer to one over the whole continuous range.
 #'
+#' @section How the intervals are computed:
+#' With `ci_method = "analytic"` (default), intervals come from the
+#' coefficients' covariance matrix. They are computed on the link scale
+#' (e.g. log-odds) and then transformed, so they respect the limits of the
+#' outcome (e.g. probabilities stay within 0 and 1). The simultaneous critical
+#' value is found by simulating from the joint distribution of the estimates.
+#'
+#' With `ci_method = "bootstrap"`, the model is refitted `nboot` times on
+#' resampled data (for `rms` fits with [rms::bootcov()], which needs the
+#' model fitted with `x = TRUE, y = TRUE`). Standard errors are the standard
+#' deviations of the bootstrap predictions, and the simultaneous critical
+#' value is the `ci_level` quantile of the largest standardized deviation of
+#' a bootstrap curve from the estimate (a "sup-t" band). Not available for
+#' mixed models.
+#'
+#' `rms::orm` models on the response scale (the mean outcome): the analytic
+#' intervals use the delta method with the full covariance matrix, i.e. the
+#' uncertainty of *all* intercepts as well as the covariate effects, as
+#' `rms::Mean(fit)(X = , conf.int = )` does. They are clipped to the observed
+#' outcome range. On the link scale the intervals are for rms's linear
+#' predictor (reference intercept plus covariate effects).
+#'
+#' Cox models: the estimate is the hazard ratio (or log hazard ratio with
+#' `scale = "link"`) relative to a subject with average values of the
+#' model's design-matrix columns, matching `predict(type = "lp")`.
+#'
 #' @inheritParams term_grid
 #' @param newdata Optional grid to predict on, e.g. from [term_grid()] or a
 #'   hand-made data frame tracing a curve through a surface. If given,
-#'   `values`, `at` and `n` are ignored. It must contain all predictors.
+#'   `values`, `at` and `n` are ignored. It must contain all predictors (or,
+#'   for a parameterized model, the variables of its parameterizations).
 #' @param ci_level Confidence level for both intervals.
 #' @param scale `"response"` (default) gives predictions on the outcome scale
 #'   (e.g. probabilities for logistic models, hazard ratios for Cox models,
 #'   the mean outcome for `rms::orm` models); `"link"` gives them on the
 #'   scale of the linear predictor.
-#' @param nsim Number of simulation draws for the simultaneous critical value.
+#' @param ci_method `"analytic"` (default) or `"bootstrap"`; see the section
+#'   on how the intervals are computed.
+#' @param ci_scope Over which points the band is simultaneous: `"global"`
+#'   (default) all grid points together; `"faceted"` separately within each
+#'   combination of the third and later focal variables; `"curve"` separately
+#'   for each curve, i.e. each combination of the second and later focal
+#'   variables. Narrower scopes give narrower bands, which only hold within
+#'   each facet or curve.
+#' @param nsim Number of simulation draws for the analytic simultaneous
+#'   critical value.
+#' @param nboot Number of bootstrap refits for `ci_method = "bootstrap"`.
 #'
-#' @return A data frame of class `term_predictions` with the grid columns and
+#' @return A data frame of class `term_predictions` with the grid columns
+#'   (for a parameterized model also the predictors computed from them) and
 #'   * `estimate`: the prediction,
-#'   * `std.error`: its standard error **on the link scale**,
+#'   * `std.error`: its standard error on the scale the intervals are
+#'     computed on (the link scale, except for the mean of `orm` models and
+#'     for bootstrap intervals of the `orm` mean, where it is the mean scale),
 #'   * `conf.low`, `conf.high`: pointwise interval,
 #'   * `band.low`, `band.high`: simultaneous band.
 #'
-#'   Attributes: `critical_value` (simultaneous), `pointwise_critical_value`,
-#'   `ci_level`, `df`, `scale`, `focal`, `held`.
-#'
-#' @details Cox models: the estimate is the hazard ratio (or log hazard ratio
-#'   with `scale = "link"`) relative to a subject with average values of the
-#'   model's design-matrix columns, matching `predict(type = "lp")`.
-#'
-#'   `rms::orm` models: the link scale is rms's linear predictor (using the
-#'   model's reference intercept) and the response scale is the mean outcome,
-#'   from `Hmisc::Mean()`. Intervals are computed for the linear predictor and
-#'   transformed, so they stay within the observed range of the outcome. As in
-#'   `rms::Predict(fit, fun = Mean(fit))`, they include the uncertainty of the
-#'   covariate effects and the reference intercept, but not that of the other
-#'   intercepts.
+#'   Attributes include `critical_value` (simultaneous; one per facet or curve
+#'   if `ci_scope` is not `"global"`), `pointwise_critical_value`,
+#'   `ci_level`, `ci_method`, `ci_scope`, `scale`, `focal`, `held`,
+#'   `held_rule` and the `model`.
 #'
 #' @examples
 #' fit <- lm(mpg ~ splines::ns(hp, 3) * wt + am, data = mtcars)
@@ -67,26 +94,48 @@ term_predictions <- function(model,
                              data = NULL,
                              ci_level = 0.95,
                              scale = c("response", "link"),
-                             nsim = 10000) {
+                             ci_method = c("analytic", "bootstrap"),
+                             ci_scope = c("global", "faceted", "curve"),
+                             nsim = 10000,
+                             nboot = 1000) {
   scale <- match.arg(scale)
+  ci_method <- match.arg(ci_method)
+  ci_scope <- match.arg(ci_scope)
+  input <- model
+  model <- original_model(model)
+
   if (is.null(newdata)) {
-    newdata <- term_grid(model, terms, values = values, at = at, n = n, data = data)
+    newdata <- term_grid(input, terms, values = values, at = at, n = n, data = data)
   } else if (!missing(terms) && is.null(attr(newdata, "focal"))) {
     attr(newdata, "focal") <- terms
   }
+  focal <- attr(newdata, "focal")
+  grid <- as.data.frame(newdata)
+  if (is.parameterized_model(input)) {
+    grid <- parameterize_data(input, grid)
+  }
 
-  design <- .design(model, newdata)
-  eta <- drop(design$X %*% design$beta)
-  se <- sqrt(pmax(rowSums((design$X %*% design$vcov) * design$X), 0))
-
-  df <- .residual_df(model)
+  inference <- .inference(model, grid, scale, ci_method, nsim, nboot, data)
+  df <- inference$df
   alpha <- 1 - ci_level
   crit_pointwise <- if (is.finite(df)) stats::qt(1 - alpha / 2, df) else stats::qnorm(1 - alpha / 2)
-  crit <- .critical_value(design$X, design$vcov, ci_level = ci_level, df = df, nsim = nsim)
 
-  transform <- if (scale == "response") .inverse_link(model) else identity
+  # simultaneous critical value, for all points together or per facet/curve
+  scope_vars <- switch(ci_scope, global = character(0), faceted = focal[-(1:2)], curve = focal[-1])
+  scope_vars <- intersect(scope_vars, names(grid))
+  group <- if (length(scope_vars)) interaction(grid[scope_vars], drop = TRUE, lex.order = TRUE) else
+    factor(rep("all", nrow(grid)))
+  max_t <- lapply(split(seq_len(nrow(grid)), group), inference$max_t)
+  crit_by_group <- vapply(max_t, function(m) {
+    if (length(m)) as.numeric(stats::quantile(m, ci_level, names = FALSE)) else NA_real_
+  }, numeric(1))
+  crit <- unname(crit_by_group[as.character(group)])
 
-  out <- as.data.frame(newdata)
+  eta <- inference$estimate
+  se <- inference$se
+  transform <- inference$transform
+
+  out <- grid
   out$estimate <- transform(eta)
   out$std.error <- se
   out$conf.low <- transform(eta - crit_pointwise * se)
@@ -94,17 +143,80 @@ term_predictions <- function(model,
   out$band.low <- transform(eta - crit * se)
   out$band.high <- transform(eta + crit * se)
 
-  attr(out, "critical_value") <- crit
+  attr(out, "critical_value") <- if (ci_scope == "global") unname(crit_by_group) else crit_by_group
   attr(out, "pointwise_critical_value") <- crit_pointwise
   attr(out, "ci_level") <- ci_level
+  attr(out, "ci_method") <- ci_method
+  attr(out, "ci_scope") <- ci_scope
+  attr(out, "scope_group") <- group
+  attr(out, "max_t") <- max_t
+  attr(out, "to_inference_scale") <- inference$to_inference_scale
   attr(out, "df") <- df
+  attr(out, "nboot") <- inference$nboot
   attr(out, "scale") <- scale
-  attr(out, "focal") <- attr(newdata, "focal")
+  attr(out, "focal") <- focal
   attr(out, "held") <- attr(newdata, "held")
+  attr(out, "held_rule") <- attr(newdata, "held_rule")
   attr(out, "outcome_label") <- .outcome_label(model, scale)
+  attr(out, "model") <- input
   attr(out, "data") <- tryCatch(.model_data(model, data), error = function(e) NULL)
   class(out) <- c("term_predictions", "data.frame")
   out
+}
+
+
+# Estimates and standard errors on the scale the intervals are built on,
+# a function mapping that scale to the reported one, and a function giving
+# simulated or bootstrap maxima of |deviation| / SE for a subset of points.
+.inference <- function(model, grid, scale, ci_method, nsim, nboot, data) {
+  orm_mean <- inherits(model, "orm") && scale == "response"
+  df <- if (ci_method == "bootstrap") Inf else .residual_df(model)
+
+  if (orm_mean) {
+    X <- .orm_x(model, grid)
+    y_range <- range(as.numeric(model$yunique))
+    transform <- function(m) pmin(pmax(m, y_range[1]), y_range[2])
+    to_inference_scale <- identity
+  } else {
+    design <- .design(model, grid)
+    X <- design$X
+    transform <- if (scale == "response") .inverse_link(model) else identity
+    to_inference_scale <- if (scale == "response") .link(model) else identity
+  }
+
+  if (ci_method == "analytic") {
+    if (orm_mean) {
+      delta <- .orm_mean(model, X, gradient = TRUE)
+      estimate <- delta$mean
+      G <- delta$gradient
+      V <- .orm_vcov_all(model)
+    } else {
+      estimate <- drop(X %*% design$beta)
+      G <- X
+      V <- design$vcov
+    }
+    se <- sqrt(pmax(rowSums((G %*% V) * G), 0))
+    max_t <- function(rows) .max_t_draws(G[rows, , drop = FALSE], V, df = df, nsim = nsim)
+    nboot <- NULL
+  } else {
+    coefs <- .bootstrap_coefs(model, nboot, data)
+    if (orm_mean) {
+      estimate <- .orm_mean(model, X)
+      draws <- t(apply(coefs, 1, function(b) .orm_mean(model, X, coefs = b)))
+    } else {
+      estimate <- drop(X %*% design$beta)
+      draws <- coefs[, names(design$beta), drop = FALSE] %*% t(X)
+    }
+    draws <- matrix(draws, nrow = nrow(coefs))
+    se <- apply(draws, 2, stats::sd)
+    max_t <- function(rows) {
+      .max_t_bootstrap(draws[, rows, drop = FALSE], estimate[rows], se[rows])
+    }
+    nboot <- nrow(coefs)
+  }
+
+  list(estimate = estimate, se = se, df = df, transform = transform,
+       to_inference_scale = to_inference_scale, max_t = max_t, nboot = nboot)
 }
 
 
@@ -131,20 +243,41 @@ term_predictions <- function(model,
 #' @export
 print.term_predictions <- function(x, n = 10, ...) {
   focal <- attr(x, "focal")
-  held <- attr(x, "held")
   cat("Predictions over", toString(focal), "(", nrow(x), "grid points,", attr(x, "scale"), "scale )\n")
+  held <- .held_text(x)
   if (length(held)) {
-    held_text <- vapply(held, function(v) {
-      if (is.numeric(v)) format(signif(v, 4)) else as.character(v)
-    }, character(1))
-    cat("Held constant:", paste0(names(held), " = ", held_text, collapse = ", "), "\n")
+    cat(strwrap(paste("Held constant:", toString(held)), exdent = 2), sep = "\n")
+  }
+  crit <- attr(x, "critical_value")
+  method <- if (identical(attr(x, "ci_method"), "bootstrap")) {
+    paste0("bootstrap, ", attr(x, "nboot"), " refits")
+  } else {
+    "analytic"
   }
   cat(sprintf(
-    "Critical values for %g%% intervals: pointwise %.3f, simultaneous %.3f\n\n",
-    100 * attr(x, "ci_level"), attr(x, "pointwise_critical_value"), attr(x, "critical_value")
+    "Critical values for %g%% intervals (%s): pointwise %.3f, simultaneous %s%s\n\n",
+    100 * attr(x, "ci_level"), method, attr(x, "pointwise_critical_value"),
+    paste(sprintf("%.3f", crit), collapse = ", "),
+    if (length(crit) > 1) paste0(" (one per ", sub("faceted", "facet", attr(x, "ci_scope")), ")") else ""
   ))
   cols <- c(focal, "estimate", "conf.low", "conf.high", "band.low", "band.high")
   print(utils::head(as.data.frame(x)[intersect(cols, names(x))], n), digits = 4, row.names = FALSE)
   if (nrow(x) > n) cat("... with", nrow(x) - n, "more rows\n")
   invisible(x)
+}
+
+
+# "age = 60 (median)", one string per held variable
+.held_text <- function(x, rules = TRUE) {
+  held <- attr(x, "held")
+  if (!length(held)) {
+    return(character(0))
+  }
+  rule <- attr(x, "held_rule")
+  vapply(names(held), function(name) {
+    v <- held[[name]]
+    value <- if (is.numeric(v)) format(signif(v, 3)) else as.character(v)
+    how <- if (rules && !is.null(rule[name]) && !is.na(rule[name])) paste0(" (", rule[[name]], ")") else ""
+    paste0(name, " = ", value, how)
+  }, character(1), USE.NAMES = FALSE)
 }

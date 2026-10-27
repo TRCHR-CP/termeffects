@@ -4,14 +4,24 @@
 \alias{term_curves}
 \title{Curves through a prediction surface ("cuts") with confidence bands}
 \usage{
-term_curves(x, band = c("simultaneous", "pointwise", "both", "none"))
+term_curves(
+  x,
+  band = c("simultaneous", "pointwise", "both", "none"),
+  show_direction = FALSE
+)
 }
 \arguments{
-\item{x}{A \code{\link[=term_predictions]{term_predictions()}} result. The second focal variable, if any,
-should have a few values (use \verb{values = } in \code{\link[=term_predictions]{term_predictions()}}).}
+\item{x}{A \code{\link[=term_predictions]{term_predictions()}}, \code{\link[=term_layer]{term_layer()}} or
+\code{\link[=test_simultaneous_predictions]{test_simultaneous_predictions()}} result. The second focal variable, if
+any, should have a few values (use \verb{values = } in \code{\link[=term_predictions]{term_predictions()}}).
+For a test result, the reference function is drawn as a dashed line.}
 
 \item{band}{Which uncertainty to show: \code{"simultaneous"}, \code{"pointwise"},
 \code{"both"} (simultaneous shaded, pointwise dashed) or \code{"none"}.}
+
+\item{show_direction}{Draw arrows pointing in the direction of the first
+variable (useful for layers, whose first variable is a position along a
+curve).}
 }
 \value{
 A ggplot object.

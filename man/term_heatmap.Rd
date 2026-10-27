@@ -4,7 +4,17 @@
 \alias{term_heatmap}
 \title{Heatmap of a prediction surface}
 \usage{
-term_heatmap(x, contours = TRUE, cuts = NULL, show_data = FALSE)
+term_heatmap(
+  x,
+  contours = TRUE,
+  cuts = NULL,
+  show_data = FALSE,
+  fill = c("estimate", "band_width", "std.error"),
+  show_support = FALSE,
+  support_prob = 0.975,
+  layers = NULL,
+  show_direction = TRUE
+)
 }
 \arguments{
 \item{x}{A \code{\link[=term_predictions]{term_predictions()}} result with two continuous focal
@@ -19,6 +29,23 @@ values in \code{\link[=term_predictions]{term_predictions()}} and \code{\link[=t
 
 \item{show_data}{Overlay the observed values of the two focal variables,
 to show where the surface is supported by data and where it extrapolates.}
+
+\item{fill}{What the colour shows: the \code{"estimate"} (default), the
+\code{"band_width"} (width of the simultaneous band, on the outcome scale) or
+the \code{"std.error"} (on the scale the band is computed on). The last two
+show where the surface is estimated precisely.}
+
+\item{show_support}{Fade the parts of the surface where there are few
+observations: outside the smallest region that holds \code{support_prob} of
+the data, estimated with a kernel density of the varying predictors.}
+
+\item{support_prob}{Share of the data inside the region that is not faded.}
+
+\item{layers}{Optional \code{\link[=term_layer]{term_layer()}} result (or a list of them) whose
+curves are drawn on the heatmap.}
+
+\item{show_direction}{Draw arrows along layer curves, pointing in the
+direction of their first variable.}
 }
 \value{
 A ggplot object, which can be modified with the usual ggplot2
@@ -26,11 +53,13 @@ functions.
 }
 \description{
 Shows how the prediction changes over two continuous focal variables, with
-all other predictors held constant (listed in the subtitle). Contour lines
-make it easier to read off values than colour alone.
+all other predictors held constant (listed in the subtitle, or in the
+caption of \code{\link[=term_figure]{term_figure()}} when there are many). Contour lines make it
+easier to read off values than colour alone.
 }
 \examples{
 fit <- lm(mpg ~ splines::ns(hp, 3) * splines::ns(wt, 3) + am, data = mtcars)
 pred <- term_predictions(fit, c("hp", "wt"), n = 40)
 term_heatmap(pred, cuts = list(wt = c(2.5, 3.5)), show_data = TRUE)
+term_heatmap(pred, fill = "band_width", show_support = TRUE)
 }

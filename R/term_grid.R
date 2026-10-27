@@ -5,12 +5,19 @@
 #' a heatmap (two focal terms) or a set of curves (one continuous focal term
 #' plus a few values of a second one) is drawn on.
 #'
-#' Held-constant values: numeric predictors are set to their mean, factor and
-#' character predictors to their reference (first) level, and logical
-#' predictors to `FALSE`. Use `at` to choose other values.
+#' Held-constant values: numeric predictors are set to their median, and
+#' factor, character and logical predictors to their most common value (the
+#' mode; the first level if tied). Use `at` to choose other values.
 #'
-#' @param model A fitted model (`lm`, `glm`, `lmerMod`, `glmerMod`, `coxph`,
-#'   or `mgcv::gam`).
+#' For a [parameterized model][parameterize()], the terms can be its new
+#' variables (e.g. `"egfr"`) as well as untransformed predictors. Without
+#' `values`, a new variable spans a range centred at zero within which the
+#' parameterized predictors stay inside their observed range (the search
+#' written for p-ggeffects). Usually it is clearer to give the range with
+#' `values`.
+#'
+#' @param model A fitted model (`lm`, `glm`, `rms::orm`, `lmerMod`,
+#'   `glmerMod`, `coxph`, or `mgcv::gam`) or a [parameterized model][parameterize()].
 #' @param terms Character vector with the names of the focal variables.
 #' @param values Optional named list giving the values to use for some or all
 #'   focal variables, e.g. `list(age = c(50, 60, 70))`.
@@ -22,8 +29,9 @@
 #'   recovered from the model call.
 #'
 #' @return A data frame with class `term_grid`. Attribute `focal` holds the
-#'   focal variable names and attribute `held` the values of the other
-#'   predictors.
+#'   focal variable names, attribute `held` the values of the other
+#'   variables and attribute `held_rule` how each was chosen (`"median"`,
+#'   `"most common"` or `"set by user"`).
 #'
 #' @examples
 #' fit <- lm(mpg ~ splines::ns(hp, 3) * splines::ns(wt, 3) + am, data = mtcars)
@@ -32,6 +40,11 @@
 #' attr(grid, "held")
 #' @export
 term_grid <- function(model, terms, values = NULL, at = NULL, n = 30, data = NULL) {
+  pmodel <- NULL
+  if (is.parameterized_model(model)) {
+    pmodel <- model
+    model <- original_model(model)
+  }
   .check_supported(model)
   data <- .model_data(model, data)
   predictors <- .predictor_names(model)
@@ -39,7 +52,24 @@ term_grid <- function(model, terms, values = NULL, at = NULL, n = 30, data = NUL
   categorical <- .factor_in_formula(model)
   data[categorical] <- lapply(data[categorical], function(x) factor(x, levels = sort(unique(x))))
 
-  unknown <- setdiff(c(terms, names(values), names(at)), names(data))
+  # variables that make up the grid: predictors, except those computed by a
+  # parameterization, plus the variables they are computed from
+  replaced <- character(0)
+  inputs <- character(0)
+  if (!is.null(pmodel)) {
+    replaced <- names(parameterizations(pmodel))
+    inputs <- parameter_variables(pmodel)
+  }
+  parameters <- setdiff(inputs, names(data))
+  variables <- union(setdiff(predictors, replaced), inputs)
+
+  computed <- intersect(c(terms, names(values), names(at)), setdiff(replaced, inputs))
+  if (length(computed)) {
+    stop(toString(computed), " is computed by the parameterization. ",
+         "Use the parameterization's variables instead: ", toString(inputs), ".",
+         call. = FALSE)
+  }
+  unknown <- setdiff(c(terms, names(values), names(at)), c(names(data), parameters))
   if (length(unknown)) {
     stop("Variable(s) not found in the model data: ", toString(unknown), call. = FALSE)
   }
@@ -50,26 +80,43 @@ term_grid <- function(model, terms, values = NULL, at = NULL, n = 30, data = NUL
     stop("Focal variables cannot also be given in `at`; use `values` instead.", call. = FALSE)
   }
 
+  held <- list()
+  rule <- character(0)
+  for (name in setdiff(variables, terms)) {
+    if (!is.null(at[[name]])) {
+      held[[name]] <- if (name %in% names(data)) .match_type(at[[name]], data[[name]]) else at[[name]]
+      rule[[name]] <- "set by user"
+    } else if (name %in% names(data)) {
+      held[[name]] <- .typical_value(data[[name]])
+      rule[[name]] <- .typical_rule(data[[name]])
+    } else {
+      stop("`", name, "` is a variable of the parameterization and not in the data, ",
+           "so it has no typical value. Make it a focal term or give its value with ",
+           "`at = list(", name, " = ...)`.", call. = FALSE)
+    }
+  }
+
+  free <- setdiff(intersect(terms, parameters), names(values))
+  ranges <- if (length(free)) .parameter_ranges(pmodel, free, held, data) else list()
+
   focal_values <- lapply(terms, function(term) {
     if (!is.null(values[[term]])) {
-      return(.match_type(values[[term]], data[[term]]))
+      return(if (term %in% names(data)) .match_type(values[[term]], data[[term]]) else values[[term]])
     }
-    .focal_values(data[[term]], n)
+    if (term %in% names(data)) {
+      return(.focal_values(data[[term]], n))
+    }
+    if (is.null(ranges[[term]])) {
+      stop("Could not find a range for `", term, "`. Give it with `values = `.", call. = FALSE)
+    }
+    seq(ranges[[term]][1], ranges[[term]][2], length.out = n)
   })
   names(focal_values) <- terms
-
-  held_names <- setdiff(predictors, terms)
-  held <- lapply(held_names, function(name) {
-    if (!is.null(at[[name]])) {
-      return(.match_type(at[[name]], data[[name]]))
-    }
-    .typical_value(data[[name]])
-  })
-  names(held) <- held_names
 
   grid <- expand.grid(c(focal_values, held), KEEP.OUT.ATTRS = FALSE, stringsAsFactors = FALSE)
   attr(grid, "focal") <- terms
   attr(grid, "held") <- held
+  attr(grid, "held_rule") <- rule
   class(grid) <- c("term_grid", "data.frame")
   grid
 }
@@ -92,13 +139,20 @@ term_grid <- function(model, terms, values = NULL, at = NULL, n = 30, data = NUL
 # value at which a non-focal variable is held constant
 .typical_value <- function(x) {
   if (is.numeric(x)) {
-    return(mean(x, na.rm = TRUE))
+    return(stats::median(x, na.rm = TRUE))
   }
+  # categories: the most common one (the first level if tied)
+  counts <- table(x)
+  mode <- names(counts)[which.max(counts)]
   if (is.logical(x)) {
-    return(FALSE)
+    return(as.logical(mode))
   }
   x <- as.factor(x)
-  factor(levels(x)[1], levels = levels(x))
+  factor(mode, levels = levels(x))
+}
+
+.typical_rule <- function(x) {
+  if (is.numeric(x)) "median" else "most common"
 }
 
 
@@ -117,8 +171,9 @@ term_grid <- function(model, terms, values = NULL, at = NULL, n = 30, data = NUL
 }
 
 
-# the data the model was fitted on, restricted to complete predictor rows
-.model_data <- function(model, data = NULL) {
+# the data the model was fitted on; by default only complete rows of the
+# predictors, with `all_columns = TRUE` the whole data frame (for refitting)
+.model_data <- function(model, data = NULL, all_columns = FALSE) {
   if (is.null(data)) {
     call_data <- stats::getCall(model)$data
     if (!is.null(call_data)) {
@@ -139,8 +194,12 @@ term_grid <- function(model, terms, values = NULL, at = NULL, n = 30, data = NUL
   if (!is.data.frame(data)) {
     stop("Could not recover the model data. Please pass it via `data = `.", call. = FALSE)
   }
+  data <- as.data.frame(data)
+  if (all_columns) {
+    return(data)
+  }
   vars <- intersect(vars, names(data))
-  data <- as.data.frame(data)[vars]
+  data <- data[vars]
   data[stats::complete.cases(data), , drop = FALSE]
 }
 

@@ -60,7 +60,7 @@
   }
   # rms's linear predictor uses the reference ("middle") intercept, and
   # vcov.orm() returns the covariance of that intercept plus the slopes
-  X <- cbind(1, stats::predict(model, newdata = newdata, type = "x"))
+  X <- cbind(1, .orm_x(model, newdata))
   slopes <- stats::coef(model)[-seq_len(model$non.slopes)]
   beta <- c(stats::coef(model)[model$interceptRef], slopes)
   vcov <- stats::vcov(model)
@@ -68,6 +68,114 @@
   dimnames(vcov) <- list(names(beta), names(beta))
   list(X = X, beta = beta, vcov = vcov)
 }
+
+# design matrix of an orm model for new data (without intercepts). rms
+# inverts the information matrix here, which fails for badly scaled models.
+.orm_x <- function(model, newdata) {
+  tryCatch(
+    stats::predict(model, newdata = newdata, type = "x"),
+    error = function(e) {
+      stop("rms could not invert the model's information matrix (", conditionMessage(e), "). ",
+           "This usually means a predictor is on a very large scale (e.g. counts in the ",
+           "thousands): rescale it or use its log, and refit.", call. = FALSE)
+    }
+  )
+}
+
+
+# Mean outcome of an orm model and its gradient with respect to all
+# coefficients (every intercept and the slopes), for the delta method. This is
+# the computation of rms's Mean(fit)(X = , conf.int = ), which also uses the
+# full covariance matrix; it is redone here to get the joint covariance.
+.orm_mean <- function(model, X, coefs = stats::coef(model), gradient = FALSE) {
+  ns <- model$non.slopes
+  alpha <- coefs[seq_len(ns)]
+  xb <- drop(X %*% coefs[-seq_len(ns)])
+  fam <- model$famfunctions
+  if (is.null(fam)) {
+    fam <- rms::probabilityFamilies$logistic
+  }
+  cumprob <- eval(fam[[1]])
+  y <- as.numeric(model$yunique)
+  eta <- outer(xb, alpha, "+")
+  # P(Y >= y_(j+1)), so the mean is y_1 + sum_j P_j (y_(j+1) - y_j)
+  P <- matrix(cumprob(eta), ncol = ns)
+  mean <- y[1] + drop(P %*% diff(y))
+  if (!gradient) {
+    return(mean)
+  }
+  density <- eval(fam[[5]])
+  d_alpha <- sweep(matrix(density(eta), ncol = ns), 2, diff(y), "*")
+  list(mean = mean, gradient = cbind(d_alpha, rowSums(d_alpha) * X))
+}
+
+
+# Covariance of all orm coefficients (every intercept and the slopes). Same as
+# vcov(model, intercepts = "all"), but the information matrix is rescaled to
+# unit diagonal before inverting, so it also works when predictors on very
+# different scales (e.g. platelets per mL) make the raw matrix numerically
+# singular.
+.orm_vcov_all <- function(model) {
+  info <- as.matrix(rms::infoMxop(model$info.matrix))
+  d <- 1 / sqrt(diag(info))
+  V <- solve(info * outer(d, d)) * outer(d, d)
+  dimnames(V) <- list(names(stats::coef(model)), names(stats::coef(model)))
+  V
+}
+
+
+# Coefficients refitted on bootstrap samples (rows = samples). rms fits use
+# rms::bootcov(), which also handles orm intercepts missing from a resample;
+# other models are refitted on resampled rows of their data.
+.bootstrap_coefs <- function(model, nboot, data = NULL) {
+  if (inherits(model, "merMod")) {
+    stop("Bootstrap intervals are not available for mixed models, where clusters ",
+         "rather than rows would have to be resampled. Use ci_method = \"analytic\".",
+         call. = FALSE)
+  }
+  if (inherits(model, "rms")) {
+    if (is.null(model$x) || is.null(model$y)) {
+      stop("For bootstrap intervals, refit the rms model with `x = TRUE, y = TRUE`.", call. = FALSE)
+    }
+    utils::capture.output(boot <- suppressMessages(suppressWarnings(rms::bootcov(model, B = nboot))))
+    coefs <- boot$boot.Coef
+    return(coefs[stats::complete.cases(coefs), , drop = FALSE])
+  }
+
+  full <- .model_data(model, data, all_columns = TRUE)
+  used <- intersect(all.vars(stats::formula(model)), names(full))
+  full <- full[stats::complete.cases(full[used]), , drop = FALSE]
+  call <- stats::getCall(model)
+  env <- environment(stats::formula(model))
+  original <- stats::coef(model)
+  coefs <- lapply(seq_len(nboot), function(b) {
+    call$data <- full[sample.int(nrow(full), replace = TRUE), , drop = FALSE]
+    fit <- tryCatch(suppressWarnings(eval(call, env)), error = function(e) NULL)
+    if (is.null(fit)) {
+      return(NULL)
+    }
+    stats::coef(fit)[names(original)]
+  })
+  coefs <- do.call(rbind, coefs)
+  if (is.null(coefs)) {
+    stop("All bootstrap refits failed.", call. = FALSE)
+  }
+  # refits in which a coefficient could not be estimated are dropped
+  coefs[stats::complete.cases(coefs[, !is.na(original), drop = FALSE]), , drop = FALSE]
+}
+
+
+# link function: maps the response scale back to the linear predictor
+.link <- function(model) {
+  if (inherits(model, "coxph")) {
+    return(log)
+  }
+  if (inherits(model, c("glm", "gam", "glmerMod"))) {
+    return(stats::family(model)$linkfun)
+  }
+  identity
+}
+
 
 .design.gam <- function(model, newdata) {
   X <- stats::predict(model, newdata = newdata, type = "lpmatrix")

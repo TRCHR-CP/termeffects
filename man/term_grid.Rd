@@ -7,8 +7,8 @@
 term_grid(model, terms, values = NULL, at = NULL, n = 30, data = NULL)
 }
 \arguments{
-\item{model}{A fitted model (\code{lm}, \code{glm}, \code{lmerMod}, \code{glmerMod}, \code{coxph},
-or \code{mgcv::gam}).}
+\item{model}{A fitted model (\code{lm}, \code{glm}, \code{rms::orm}, \code{lmerMod},
+\code{glmerMod}, \code{coxph}, or \code{mgcv::gam}) or a \link[=parameterize]{parameterized model}.}
 
 \item{terms}{Character vector with the names of the focal variables.}
 
@@ -26,8 +26,9 @@ recovered from the model call.}
 }
 \value{
 A data frame with class \code{term_grid}. Attribute \code{focal} holds the
-focal variable names and attribute \code{held} the values of the other
-predictors.
+focal variable names, attribute \code{held} the values of the other
+variables and attribute \code{held_rule} how each was chosen (\code{"median"},
+\code{"most common"} or \code{"set by user"}).
 }
 \description{
 Creates a data frame in which the focal variables vary over a regular grid
@@ -36,9 +37,16 @@ a heatmap (two focal terms) or a set of curves (one continuous focal term
 plus a few values of a second one) is drawn on.
 }
 \details{
-Held-constant values: numeric predictors are set to their mean, factor and
-character predictors to their reference (first) level, and logical
-predictors to \code{FALSE}. Use \code{at} to choose other values.
+Held-constant values: numeric predictors are set to their median, and
+factor, character and logical predictors to their most common value (the
+mode; the first level if tied). Use \code{at} to choose other values.
+
+For a \link[=parameterize]{parameterized model}, the terms can be its new
+variables (e.g. \code{"egfr"}) as well as untransformed predictors. Without
+\code{values}, a new variable spans a range centred at zero within which the
+parameterized predictors stay inside their observed range (the search
+written for p-ggeffects). Usually it is clearer to give the range with
+\code{values}.
 }
 \examples{
 fit <- lm(mpg ~ splines::ns(hp, 3) * splines::ns(wt, 3) + am, data = mtcars)

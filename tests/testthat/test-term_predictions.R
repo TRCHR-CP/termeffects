@@ -96,7 +96,7 @@ test_that("mgcv gam: matches predict(se.fit = TRUE)", {
   expect_equal(pred$std.error, unname(as.numeric(ref$se.fit)))
 })
 
-test_that("rms::orm: matches predict(), Mean() and rms::Predict(fun = Mean)", {
+test_that("rms::orm: matches predict(), Mean() and Mean()'s delta-method limits", {
   skip_if_not_installed("rms")
   rcs <- rms::rcs
   set.seed(1)
@@ -115,10 +115,59 @@ test_that("rms::orm: matches predict(), Mean() and rms::Predict(fun = Mean)", {
   expect_true(all(pred$band.low >= min(d$y) & pred$band.high <= max(d$y)))
   expect_true(all(pred$band.low <= pred$conf.low & pred$band.high >= pred$conf.high))
 
-  # pointwise limits are rms::Predict(fun = Mean)'s: Mean(lp -/+ z * se)
-  z <- qnorm(0.975)
-  expect_equal(pred$conf.low, unname(mean_fun(ref$linear.predictors - z * ref$se.fit)))
-  expect_equal(pred$conf.high, unname(mean_fun(ref$linear.predictors + z * ref$se.fit)))
+  # pointwise limits are rms's delta method with all intercepts:
+  # Mean(fit)(X = , conf.int = 0.95)
+  X <- predict(fit, newdata = pred, type = "x")
+  limits <- attr(mean_fun(X = X, conf.int = 0.95), "limits")
+  expect_equal(pred$conf.low, unname(limits$lower), tolerance = 1e-6)
+  expect_equal(pred$conf.high, unname(limits$upper), tolerance = 1e-6)
+})
+
+test_that("bootstrap intervals agree with analytic ones for a linear model", {
+  fit <- lm(mpg ~ splines::ns(hp, 3) + wt, data = mtcars)
+  set.seed(3)
+  boot <- term_predictions(fit, "hp", n = 10, ci_method = "bootstrap", nboot = 400)
+  analytic <- term_predictions(fit, "hp", n = 10)
+  expect_equal(boot$estimate, analytic$estimate)
+  # bootstrap SEs are noisy, and larger at the edges of a spline in a small
+  # sample (32 cars), but of the same size overall
+  ratio <- boot$std.error / analytic$std.error
+  expect_true(median(ratio) > 0.7 && median(ratio) < 1.5)
+  expect_equal(attr(boot, "ci_method"), "bootstrap")
+  expect_lte(attr(boot, "nboot"), 400)
+  expect_gt(attr(boot, "critical_value"), attr(boot, "pointwise_critical_value"))
+  expect_output(print(boot), "bootstrap")
+})
+
+test_that("bootstrap intervals for orm use bootcov and need x, y", {
+  skip_if_not_installed("rms")
+  set.seed(4)
+  o <- rms::orm(ejection_fraction ~ rms::rcs(creatinine, 3) + age, data = heartfailure)
+  expect_error(term_predictions(o, "creatinine", ci_method = "bootstrap", nboot = 10), "x = TRUE")
+  o <- rms::orm(ejection_fraction ~ rms::rcs(creatinine, 3) + age, data = heartfailure, x = TRUE, y = TRUE)
+  boot <- term_predictions(o, "creatinine", n = 8, ci_method = "bootstrap", nboot = 50)
+  expect_true(all(boot$band.low <= boot$estimate & boot$estimate <= boot$band.high))
+  expect_true(all(boot$band.low >= 14 & boot$band.high <= 80))
+})
+
+test_that("bootstrap is refused for mixed models", {
+  skip_if_not_installed("lme4")
+  m <- lme4::lmer(Reaction ~ Days + (1 | Subject), data = lme4::sleepstudy)
+  expect_error(term_predictions(m, "Days", ci_method = "bootstrap"), "mixed models")
+})
+
+test_that("ci_scope gives one critical value per facet or curve", {
+  fit <- lm(mpg ~ hp * wt * factor(am), data = mtcars)
+  set.seed(5)
+  values <- list(wt = c(2.5, 3.5))
+  global <- term_predictions(fit, c("hp", "wt", "am"), values = values, n = 10)
+  faceted <- term_predictions(fit, c("hp", "wt", "am"), values = values, n = 10, ci_scope = "faceted")
+  curve <- term_predictions(fit, c("hp", "wt", "am"), values = values, n = 10, ci_scope = "curve")
+  expect_length(attr(global, "critical_value"), 1)
+  expect_length(attr(faceted, "critical_value"), 2)
+  expect_length(attr(curve, "critical_value"), 4)
+  # narrower scopes need smaller multipliers
+  expect_true(all(attr(curve, "critical_value") < attr(global, "critical_value")))
 })
 
 test_that("newdata can trace an arbitrary curve through the surface", {

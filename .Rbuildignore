@@ -8,3 +8,5 @@
 ^how_i_started\.R$
 ^doc$
 ^Meta$
+^data-raw$
+^\.claude$
