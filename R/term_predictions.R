@@ -32,11 +32,16 @@
 #' mixed models.
 #'
 #' `rms::orm` models on the response scale (the mean outcome): the analytic
-#' intervals use the delta method with the full covariance matrix, i.e. the
-#' uncertainty of *all* intercepts as well as the covariate effects, as
-#' `rms::Mean(fit)(X = , conf.int = )` does. They are clipped to the observed
-#' outcome range. On the link scale the intervals are for rms's linear
-#' predictor (reference intercept plus covariate effects).
+#' intervals are computed for rms's linear predictor (reference intercept
+#' plus covariate effects) and transformed with `Hmisc::Mean()`, as
+#' `rms::Predict(fit, fun = Mean(fit))` does. They ignore the uncertainty of
+#' the other intercepts, but in simulations (`validation/08_orm_interval_methods.R`)
+#' they had the most accurate coverage. `ci_method = "delta"` instead uses
+#' the delta method on the mean scale with the covariance of *all*
+#' coefficients, as `rms::Mean(fit)(X = , conf.int = )` does; its symmetric
+#' intervals covered slightly less often than stated. Bootstrap intervals
+#' for orm are also computed on the mean scale. Mean-scale intervals are
+#' clipped to the observed outcome range.
 #'
 #' Cox models: the estimate is the hazard ratio (or log hazard ratio with
 #' `scale = "link"`) relative to a subject with average values of the
@@ -52,8 +57,9 @@
 #'   (e.g. probabilities for logistic models, hazard ratios for Cox models,
 #'   the mean outcome for `rms::orm` models); `"link"` gives them on the
 #'   scale of the linear predictor.
-#' @param ci_method `"analytic"` (default) or `"bootstrap"`; see the section
-#'   on how the intervals are computed.
+#' @param ci_method `"analytic"` (default), `"bootstrap"` or, for `rms::orm`
+#'   models only, `"delta"`; see the section on how the intervals are
+#'   computed.
 #' @param ci_scope Over which points the band is simultaneous: `"global"`
 #'   (default) all grid points together; `"faceted"` separately within each
 #'   combination of the third and later focal variables; `"curve"` separately
@@ -68,8 +74,8 @@
 #'   (for a parameterized model also the predictors computed from them) and
 #'   * `estimate`: the prediction,
 #'   * `std.error`: its standard error on the scale the intervals are
-#'     computed on (the link scale, except for the mean of `orm` models and
-#'     for bootstrap intervals of the `orm` mean, where it is the mean scale),
+#'     computed on (the link scale, except for delta-method and bootstrap
+#'     intervals of the `orm` mean, where it is the mean scale),
 #'   * `conf.low`, `conf.high`: pointwise interval,
 #'   * `band.low`, `band.high`: simultaneous band.
 #'
@@ -94,7 +100,7 @@ term_predictions <- function(model,
                              data = NULL,
                              ci_level = 0.95,
                              scale = c("response", "link"),
-                             ci_method = c("analytic", "bootstrap"),
+                             ci_method = c("analytic", "bootstrap", "delta"),
                              ci_scope = c("global", "faceted", "curve"),
                              nsim = 10000,
                              nboot = 1000) {
@@ -169,10 +175,17 @@ term_predictions <- function(model,
 # a function mapping that scale to the reported one, and a function giving
 # simulated or bootstrap maxima of |deviation| / SE for a subset of points.
 .inference <- function(model, grid, scale, ci_method, nsim, nboot, data) {
-  orm_mean <- inherits(model, "orm") && scale == "response"
-  df <- if (ci_method == "bootstrap") Inf else .residual_df(model)
+  is_orm <- inherits(model, "orm")
+  if (ci_method == "delta" && !is_orm) {
+    stop("ci_method = \"delta\" is only for rms::orm models; for other models the ",
+         "analytic intervals already are delta-method intervals.", call. = FALSE)
+  }
+  # the orm mean computed on its own scale (delta method or bootstrap), as
+  # opposed to intervals for the linear predictor transformed by Mean()
+  mean_scale <- is_orm && scale == "response" && ci_method != "analytic"
+  df <- if (ci_method == "analytic") .residual_df(model) else Inf
 
-  if (orm_mean) {
+  if (mean_scale) {
     X <- .orm_x(model, grid)
     y_range <- range(as.numeric(model$yunique))
     transform <- function(m) pmin(pmax(m, y_range[1]), y_range[2])
@@ -181,11 +194,11 @@ term_predictions <- function(model,
     design <- .design(model, grid)
     X <- design$X
     transform <- if (scale == "response") .inverse_link(model) else identity
-    to_inference_scale <- if (scale == "response") .link(model) else identity
+    to_inference_scale <- if (scale == "link") identity else if (is_orm) .orm_mean_inverse(model) else .link(model)
   }
 
-  if (ci_method == "analytic") {
-    if (orm_mean) {
+  if (ci_method != "bootstrap") {
+    if (mean_scale) {
       delta <- .orm_mean(model, X, gradient = TRUE)
       estimate <- delta$mean
       G <- delta$gradient
@@ -200,7 +213,7 @@ term_predictions <- function(model,
     nboot <- NULL
   } else {
     coefs <- .bootstrap_coefs(model, nboot, data)
-    if (orm_mean) {
+    if (mean_scale) {
       estimate <- .orm_mean(model, X)
       draws <- t(apply(coefs, 1, function(b) .orm_mean(model, X, coefs = b)))
     } else {

@@ -96,7 +96,7 @@ test_that("mgcv gam: matches predict(se.fit = TRUE)", {
   expect_equal(pred$std.error, unname(as.numeric(ref$se.fit)))
 })
 
-test_that("rms::orm: matches predict(), Mean() and Mean()'s delta-method limits", {
+test_that("rms::orm: matches predict(), Mean(), rms::Predict(fun = Mean) and Mean()'s delta method", {
   skip_if_not_installed("rms")
   rcs <- rms::rcs
   set.seed(1)
@@ -115,12 +115,26 @@ test_that("rms::orm: matches predict(), Mean() and Mean()'s delta-method limits"
   expect_true(all(pred$band.low >= min(d$y) & pred$band.high <= max(d$y)))
   expect_true(all(pred$band.low <= pred$conf.low & pred$band.high >= pred$conf.high))
 
-  # pointwise limits are rms's delta method with all intercepts:
+  # pointwise limits are rms::Predict(fun = Mean)'s: Mean(lp -/+ z * se)
+  z <- qnorm(0.975)
+  expect_equal(pred$conf.low, unname(mean_fun(ref$linear.predictors - z * ref$se.fit)))
+  expect_equal(pred$conf.high, unname(mean_fun(ref$linear.predictors + z * ref$se.fit)))
+
+  # ci_method = "delta": rms's delta method with all intercepts,
   # Mean(fit)(X = , conf.int = 0.95)
-  X <- predict(fit, newdata = pred, type = "x")
+  delta <- term_predictions(fit, c("x", "z"), values = list(z = c(0.2, 0.8)), n = 10, ci_method = "delta")
+  X <- predict(fit, newdata = delta, type = "x")
   limits <- attr(mean_fun(X = X, conf.int = 0.95), "limits")
-  expect_equal(pred$conf.low, unname(limits$lower), tolerance = 1e-6)
-  expect_equal(pred$conf.high, unname(limits$upper), tolerance = 1e-6)
+  expect_equal(delta$estimate, pred$estimate)
+  expect_equal(delta$conf.low, pmax(unname(limits$lower), min(d$y)), tolerance = 1e-6)
+  expect_equal(delta$conf.high, pmin(unname(limits$upper), max(d$y)), tolerance = 1e-6)
+  expect_error(term_predictions(lm(mpg ~ hp, data = mtcars), "hp", ci_method = "delta"), "only for rms::orm")
+
+  # the simultaneous test maps a mean-scale reference to the linear predictor
+  flat <- test_simultaneous_predictions(pred, function(x) 50 + 0 * x)
+  lp50 <- uniroot(function(lp) mean_fun(lp) - 50, range(ref$linear.predictors) + c(-5, 5))$root
+  expect_equal(attr(flat, "statistic"),
+               max(abs(ref$linear.predictors - lp50) / ref$se.fit), tolerance = 1e-3)
 })
 
 test_that("bootstrap intervals agree with analytic ones for a linear model", {

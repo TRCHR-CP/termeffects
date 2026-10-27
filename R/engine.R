@@ -110,6 +110,25 @@
 }
 
 
+# inverse of Hmisc::Mean(model): the linear predictor giving a mean outcome
+# (Mean is increasing in it); means outside the outcome range give -Inf/Inf
+.orm_mean_inverse <- function(model) {
+  mean_fun <- Hmisc::Mean(model)
+  ref <- stats::coef(model)[model$interceptRef]
+  alpha <- stats::coef(model)[seq_len(model$non.slopes)]
+  lp <- seq(min(ref - alpha) - 20, max(ref - alpha) + 20, length.out = 4001)
+  m <- mean_fun(lp)
+  inverse <- stats::approxfun(m, lp, ties = mean)
+  y_range <- range(as.numeric(model$yunique))
+  function(mean) {
+    out <- inverse(mean)
+    out[mean <= y_range[1]] <- -Inf
+    out[mean >= y_range[2]] <- Inf
+    out
+  }
+}
+
+
 # Covariance of all orm coefficients (every intercept and the slopes). Same as
 # vcov(model, intercepts = "all"), but the information matrix is rescaled to
 # unit diagonal before inverting, so it also works when predictors on very

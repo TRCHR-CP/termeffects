@@ -59,6 +59,16 @@ term_heatmap <- function(x, contours = TRUE, cuts = NULL, show_data = FALSE,
     std.error = "Standard error"
   )
 
+  support <- if (show_support) .support(x, support_prob)
+  capped <- FALSE
+  if (!is.null(support) && any(support)) {
+    # extrapolated corners can have extreme values; cap the colours at the
+    # range seen where there are data, so the supported region shows detail
+    limits <- range(plot_data$.fill[support])
+    capped <- any(plot_data$.fill < limits[1] | plot_data$.fill > limits[2])
+    plot_data$.fill <- pmin(pmax(plot_data$.fill, limits[1]), limits[2])
+  }
+
   p <- ggplot2::ggplot(plot_data, ggplot2::aes(x = .data[[vx]], y = .data[[vy]])) +
     ggplot2::geom_raster(ggplot2::aes(fill = .data$.fill), interpolate = TRUE) +
     ggplot2::scale_x_continuous(expand = c(0, 0)) +
@@ -77,7 +87,6 @@ term_heatmap <- function(x, contours = TRUE, cuts = NULL, show_data = FALSE,
   }
 
   if (show_support) {
-    support <- .support(x, support_prob)
     if (!is.null(support)) {
       plot_data$.veil <- ifelse(support, 0, 0.6)
       p <- p + ggplot2::geom_raster(data = plot_data, ggplot2::aes(alpha = .data$.veil),
@@ -114,8 +123,9 @@ term_heatmap <- function(x, contours = TRUE, cuts = NULL, show_data = FALSE,
 
   p + ggplot2::coord_cartesian(xlim = range(plot_data[[vx]]), ylim = range(plot_data[[vy]]), expand = FALSE) +
     ggplot2::labs(x = vx, y = vy, subtitle = .held_subtitle(x),
-                  caption = if (show_support) paste0("Faded: outside the region holding ",
-                                                     100 * support_prob, "% of the observations")) +
+                  caption = if (show_support) .wrap(paste0(
+                    "Faded: outside the region holding ", 100 * support_prob, "% of the observations",
+                    if (capped) "; colours capped at the range inside it"), 70)) +
     ggplot2::theme_minimal()
 }
 
@@ -134,13 +144,14 @@ term_heatmap <- function(x, contours = TRUE, cuts = NULL, show_data = FALSE,
     curve_vars <- intersect(focal[-1], names(layer))
     curve_vars <- curve_vars[vapply(curve_vars, function(v) !v %in% c(vx, vy), logical(1))]
     d <- as.data.frame(layer)
-    label <- if (length(curve_vars)) {
-      paste0(curve_vars[1], " = ", format(d[[curve_vars[1]]], digits = 3, trim = TRUE))
+    if (length(curve_vars)) {
+      d <- d[order(d[[curve_vars[1]]], d[[focal[1]]]), , drop = FALSE]
+      label <- paste0(curve_vars[1], " = ", format(d[[curve_vars[1]]], digits = 3, trim = TRUE))
     } else {
-      rep(focal[1], nrow(d))
+      d <- d[order(d[[focal[1]]]), , drop = FALSE]
+      label <- rep(focal[1], nrow(d))
     }
     d$.curve <- if (length(layers) > 1) paste0("Layer ", i, ": ", label) else label
-    d <- d[order(d$.curve, d[[focal[1]]]), , drop = FALSE]
     d
   })
   paths <- do.call(rbind, lapply(paths, function(d) d[c(vx, vy, ".curve", setdiff(names(d), c(vx, vy, ".curve")))]))

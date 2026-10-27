@@ -14,7 +14,7 @@ term_predictions(
   data = NULL,
   ci_level = 0.95,
   scale = c("response", "link"),
-  ci_method = c("analytic", "bootstrap"),
+  ci_method = c("analytic", "bootstrap", "delta"),
   ci_scope = c("global", "faceted", "curve"),
   nsim = 10000,
   nboot = 1000
@@ -50,8 +50,9 @@ recovered from the model call.}
 the mean outcome for \code{rms::orm} models); \code{"link"} gives them on the
 scale of the linear predictor.}
 
-\item{ci_method}{\code{"analytic"} (default) or \code{"bootstrap"}; see the section
-on how the intervals are computed.}
+\item{ci_method}{\code{"analytic"} (default), \code{"bootstrap"} or, for \code{rms::orm}
+models only, \code{"delta"}; see the section on how the intervals are
+computed.}
 
 \item{ci_scope}{Over which points the band is simultaneous: \code{"global"}
 (default) all grid points together; \code{"faceted"} separately within each
@@ -71,8 +72,8 @@ A data frame of class \code{term_predictions} with the grid columns
 \itemize{
 \item \code{estimate}: the prediction,
 \item \code{std.error}: its standard error on the scale the intervals are
-computed on (the link scale, except for the mean of \code{orm} models and
-for bootstrap intervals of the \code{orm} mean, where it is the mean scale),
+computed on (the link scale, except for delta-method and bootstrap
+intervals of the \code{orm} mean, where it is the mean scale),
 \item \code{conf.low}, \code{conf.high}: pointwise interval,
 \item \code{band.low}, \code{band.high}: simultaneous band.
 }
@@ -119,11 +120,16 @@ a bootstrap curve from the estimate (a "sup-t" band). Not available for
 mixed models.
 
 \code{rms::orm} models on the response scale (the mean outcome): the analytic
-intervals use the delta method with the full covariance matrix, i.e. the
-uncertainty of \emph{all} intercepts as well as the covariate effects, as
-\code{rms::Mean(fit)(X = , conf.int = )} does. They are clipped to the observed
-outcome range. On the link scale the intervals are for rms's linear
-predictor (reference intercept plus covariate effects).
+intervals are computed for rms's linear predictor (reference intercept
+plus covariate effects) and transformed with \code{Hmisc::Mean()}, as
+\code{rms::Predict(fit, fun = Mean(fit))} does. They ignore the uncertainty of
+the other intercepts, but in simulations (\verb{validation/08_orm_interval_methods.R})
+they had the most accurate coverage. \code{ci_method = "delta"} instead uses
+the delta method on the mean scale with the covariance of \emph{all}
+coefficients, as \code{rms::Mean(fit)(X = , conf.int = )} does; its symmetric
+intervals covered slightly less often than stated. Bootstrap intervals
+for orm are also computed on the mean scale. Mean-scale intervals are
+clipped to the observed outcome range.
 
 Cox models: the estimate is the hazard ratio (or log hazard ratio with
 \code{scale = "link"}) relative to a subject with average values of the

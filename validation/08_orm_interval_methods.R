@@ -5,14 +5,20 @@
 # we compute the 95% simultaneous band over three curves (21 x-values each)
 # in three ways and record whether it contains all 63 true means:
 #
-#   lp_wald   band for rms's linear predictor (reference intercept + slopes),
-#             transformed with Mean(); what rms::Predict(fun = Mean(fit))
-#             does. Ignores the uncertainty of the other intercepts.
-#   delta     termeffects' default: delta method on the mean scale with the
+#   lp_wald   termeffects' default (ci_method = "analytic"): band for rms's
+#             linear predictor (reference intercept + slopes), transformed
+#             with Mean(); what rms::Predict(fun = Mean(fit)) does. Ignores
+#             the uncertainty of the other intercepts.
+#   delta     ci_method = "delta": delta method on the mean scale with the
 #             covariance of ALL intercepts and slopes (as rms's
 #             Mean(fit)(X = , conf.int = )).
-#   bootstrap termeffects with ci_method = "bootstrap": rms::bootcov()
-#             refits, sup-t band on the mean scale.
+#   bootstrap ci_method = "bootstrap": rms::bootcov() refits, sup-t band on
+#             the mean scale.
+#
+# Result of the first run (nboot = 200): lp_wald 0.973 / 0.947, delta
+# 0.940 / 0.917, bootstrap 0.930 / 0.910 (LVEF-like / continuous), which is
+# why the linear-predictor method is the default. This version uses
+# nboot = 1000, the package default.
 #
 # Also recorded: pointwise coverage at one point and the average band width.
 # Target for the simultaneous coverage: 0.95 (about 0.925-0.975 with 300 runs).
@@ -21,7 +27,7 @@ suppressMessages(library(rms))
 RNGkind("L'Ecuyer-CMRG")
 set.seed(2026)
 nrep <- 300
-nboot <- 200
+nboot <- 1000
 cores <- max(1, parallel::detectCores() - 1)
 
 lp_true <- function(x, z) 2 * x - 3 * x^2 + 2 * x * z
@@ -57,21 +63,20 @@ one_run <- function(sc) {
   d <- simulate(sc)
   fit <- orm(y ~ pol(x, 2) * z, data = d, x = TRUE, y = TRUE)
   values <- list(x = grid_x, z = grid_z)
-  delta <- term_predictions(fit, c("x", "z"), values = values, nsim = 2000)
-  link <- term_predictions(fit, c("x", "z"), values = values, nsim = 2000, scale = "link")
-  M <- Mean(fit)
+  delta <- term_predictions(fit, c("x", "z"), values = values, nsim = 2000, ci_method = "delta")
+  lp <- term_predictions(fit, c("x", "z"), values = values, nsim = 2000)
   boot <- tryCatch(term_predictions(fit, c("x", "z"), values = values, ci_method = "bootstrap",
                                     nboot = nboot), error = function(e) NULL)
   truth <- true_mean(sc, lp_true(delta$x, delta$z))
   covers <- function(lo, hi) all(truth >= lo - 1e-8 & truth <= hi + 1e-8)
   mid <- which(delta$x == 0.5 & delta$z == 0.5)
-  c(lp_wald = covers(M(link$band.low), M(link$band.high)),
+  c(lp_wald = covers(lp$band.low, lp$band.high),
     delta = covers(delta$band.low, delta$band.high),
     bootstrap = if (is.null(boot)) NA else covers(boot$band.low, boot$band.high),
-    lp_wald_point = truth[mid] >= M(link$conf.low)[mid] & truth[mid] <= M(link$conf.high)[mid],
+    lp_wald_point = truth[mid] >= lp$conf.low[mid] & truth[mid] <= lp$conf.high[mid],
     delta_point = truth[mid] >= delta$conf.low[mid] & truth[mid] <= delta$conf.high[mid],
     bootstrap_point = if (is.null(boot)) NA else truth[mid] >= boot$conf.low[mid] & truth[mid] <= boot$conf.high[mid],
-    lp_wald_width = mean(M(link$band.high) - M(link$band.low)),
+    lp_wald_width = mean(lp$band.high - lp$band.low),
     delta_width = mean(delta$band.high - delta$band.low),
     bootstrap_width = if (is.null(boot)) NA else mean(boot$band.high - boot$band.low))
 }

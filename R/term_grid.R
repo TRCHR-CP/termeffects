@@ -97,21 +97,24 @@ term_grid <- function(model, terms, values = NULL, at = NULL, n = 30, data = NUL
   }
 
   free <- setdiff(intersect(terms, parameters), names(values))
-  ranges <- if (length(free)) .parameter_ranges(pmodel, free, held, data) else list()
-
-  focal_values <- lapply(terms, function(term) {
+  focal_values <- lapply(stats::setNames(nm = setdiff(terms, free)), function(term) {
     if (!is.null(values[[term]])) {
       return(if (term %in% names(data)) .match_type(values[[term]], data[[term]]) else values[[term]])
     }
-    if (term %in% names(data)) {
-      return(.focal_values(data[[term]], n))
-    }
-    if (is.null(ranges[[term]])) {
-      stop("Could not find a range for `", term, "`. Give it with `values = `.", call. = FALSE)
-    }
-    seq(ranges[[term]][1], ranges[[term]][2], length.out = n)
+    .focal_values(data[[term]], n)
   })
-  names(focal_values) <- terms
+  if (length(free)) {
+    # the range search holds the other focal variables at a middle value
+    middle <- lapply(focal_values, function(v) if (is.numeric(v)) stats::median(v) else v[1])
+    ranges <- .parameter_ranges(pmodel, free, c(held, middle), data)
+    for (term in free) {
+      if (is.null(ranges[[term]])) {
+        stop("Could not find a range for `", term, "`. Give it with `values = `.", call. = FALSE)
+      }
+      focal_values[[term]] <- seq(ranges[[term]][1], ranges[[term]][2], length.out = n)
+    }
+  }
+  focal_values <- focal_values[terms]
 
   grid <- expand.grid(c(focal_values, held), KEEP.OUT.ATTRS = FALSE, stringsAsFactors = FALSE)
   attr(grid, "focal") <- terms
@@ -189,6 +192,16 @@ term_grid <- function(model, terms, values = NULL, at = NULL, n = 30, data = NUL
     frame <- tryCatch(stats::model.frame(model), error = function(e) NULL)
     if (is.data.frame(frame) && all(vars %in% names(frame))) {
       data <- frame
+    }
+  }
+  if (!is.data.frame(data) && is.null(stats::getCall(model)$data)) {
+    # fitted without `data =`: the variables live where the formula was made
+    found <- tryCatch(
+      mget(vars, envir = environment(stats::formula(model)), inherits = TRUE),
+      error = function(e) NULL
+    )
+    if (!is.null(found) && length(unique(lengths(found))) == 1) {
+      data <- as.data.frame(found)
     }
   }
   if (!is.data.frame(data)) {

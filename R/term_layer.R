@@ -91,6 +91,10 @@ term_layer <- function(x, parameterization, terms = NULL, values = NULL, n = 30,
   held <- attr(x, "held")
   held <- held[setdiff(names(held), terms)]
   out <- do.call(term_predictions, c(list(pmodel, terms, values = values, at = held, n = n), args))
+  # position of each point in the heatmap's coordinates (needed when those
+  # are themselves variables of a parameterization, and not model predictors)
+  positions <- .parameterize_data_frame(as.data.frame(out), new_parameterizations)
+  out[names(parameterization)] <- positions[names(parameterization)]
   attr(out, "base_focal") <- base
   attr(out, "held_rule") <- attr(x, "held_rule")[names(held)]
   class(out) <- c("term_layer", class(out))
