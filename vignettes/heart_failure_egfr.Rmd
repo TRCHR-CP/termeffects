@@ -1,29 +1,30 @@
 ---
-title: "p-ggeffects feature demonstration: Cardiac systolic function and renal health"
+title: "termeffects feature demonstration: Cardiac systolic function and renal health"
 subtitle: "Parametric visualizations and test"
 output:
-  html_document:
+  rmarkdown::html_vignette:
     toc: true
     toc_depth: 3
-    df_print: paged
+vignette: >
+  %\VignetteIndexEntry{termeffects feature demonstration: Cardiac systolic function and renal health}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
 ---
 
 # Introduction
 
-This case study demonstrates a workflow for **p-ggeffects** in which fitting a regression model is deliberately separated from specifying prediction domains and drawing figures. We analyze the `heartfailure` dataset distributed with `dlookr`, treating **left ventricular ejection fraction (LVEF)** as a continuous outcome. We ask how its *adjusted association* with renal markers varies across creatinine, serum sodium, and age.
+This case study demonstrates a workflow for **termeffects** in which fitting a regression model is deliberately separated from specifying prediction domains and drawing figures. We analyze the `heartfailure` dataset distributed with termeffects (originally from `dlookr`), treating **left ventricular ejection fraction (LVEF)** as a continuous outcome. We ask how its *adjusted association* with renal markers varies across creatinine, serum sodium, and age.
 
-The example illustrates five tools from the supplied p-ggeffects vignette:
+The example illustrates six tools:
 
 1. **Spline interactions** allow a flexible two-variable response surface.
-2. **`ggpredict()`** produces adjusted predictions on regular grids for heatmaps.
+2. **`term_predictions()`** produces adjusted predictions on regular grids for heatmaps.
 3. **`parameterize()`** transforms a *fitted* model into clinically meaningful prediction coordinates without refitting it.
-4. **Heatmaps and parameterized overlays** display both the fitted surface and nonlinear constant-eGFR trajectories in the original predictor coordinates.
-5. **`ci_method = "coefficient"`, `plot(..., use_scb = TRUE)`** demonstrate simultaneous uncertainty over a *specified prediction grid*.
+4. **Heatmaps and parameterized overlays** (`term_heatmap()`, `term_layer()`) display both the fitted surface and nonlinear constant-eGFR trajectories in the original predictor coordinates.
+5. **`term_curves(..., band = "simultaneous")`** demonstrates simultaneous uncertainty over a *specified prediction grid*.
 6. **`test_simultaneous_predictions(..., f = f0)`** demonstrates simultaneous comparison with a specified reference function, including a linear reference surface. This is not a general test of linearity.
 
 **Scope.** Every plot has at most two continuous focal coordinates (or one continuous coordinate and age strata). All other predictors are held at stated reference values. In the model-fitting stage, no plotting decisions are made. The resulting analysis is associative, not causal. The data are observational and small (299 patients); apparent nonlinear patterns may be unstable.
-
-**Implementation note.** This is a worked vignette template targeting the API shown in the supplied p-ggeffects vignette. It has been simplified to use standard spline interaction terms that are available in base R, so it can be rendered reliably while preserving the intended p-ggeffects workflow.
 
 # Part I — Data and model (no plotting)
 
@@ -33,53 +34,26 @@ The example illustrates five tools from the supplied p-ggeffects vignette:
 knitr::opts_chunk$set(fig.width = 8, fig.height = 5, collapse = TRUE,
                       comment = "#>")
 
-input_file <- knitr::current_input()
-input_dir <- if (length(input_file) && nzchar(input_file)) {
-  dirname(normalizePath(input_file, mustWork = FALSE))
-} else {
-  getwd()
-}
-source_roots <- unique(c(".", "..", file.path(input_dir, ".."),
-                         file.path(input_dir, "../..")))
-source_roots <- source_roots[vapply(source_roots, function(path) {
-  description <- file.path(path, "DESCRIPTION")
-  file.exists(description) &&
-    identical(as.character(read.dcf(description, "Package")[1, 1]), "ggeffects")
-}, logical(1))]
-
-if (length(source_roots)) {
-  if (!requireNamespace("pkgload", quietly = TRUE)) {
-    stop("Install the pkgload package to render this vignette from the source tree.")
-  }
-  pkgload::load_all(source_roots[[1]])
-} else if (!requireNamespace("ggeffects", quietly = TRUE)) {
-  stop("Render this vignette from the ggeffects source tree or install ggeffects.")
-}
-
+library(termeffects)
 library(ggplot2)
 library(splines)
-if (!requireNamespace("dlookr", quietly = TRUE)) {
-  install.packages("dlookr", repos = "https://cloud.r-project.org")
-}
-library(dlookr)
-library(ggeffects)
 ```
 
 ```{r data}
-data("heartfailure", package = "dlookr")
+data("heartfailure", package = "termeffects")
 raw <- as.data.frame(heartfailure)
 names(raw)
 str(raw)
 ```
 
-We use the conventional column names in the public heart-failure clinical-records dataset. Check the output above if your package version uses different capitalization or labels.
+We use the conventional column names in the public heart-failure clinical-records dataset.
 
 ```{r prepare-data}
 required <- c("ejection_fraction", "creatinine", "sodium",
               "age", "sex", "diabetes")
 stopifnot(all(required %in% names(raw)))
 dat <- raw[stats::complete.cases(raw[, required]), required]
-# Normalize the public dlookr dataset to the conventional names used below,
+# Normalize the public dataset to the conventional names used below,
 # and encode the categorical predictors as 0/1 for easy fixed-value
 # conditioning in the parameterized predictions.
 dat <- stats::setNames(dat, c("ejection_fraction", "serum_creatinine",
@@ -122,7 +96,7 @@ abline(h = 0, lty = 2)
 
 ## 3. Choose explicit adjustment values
 
-All non-focal predictors are **fixed at a common reference profile**, rather than averaged over the patient distribution. This is one of the marginalization choices supported by the ggeffects workflow. The reference profile is descriptive, not necessarily a typical individual.
+All non-focal predictors are **fixed at a common reference profile**, rather than averaged over the patient distribution. The reference profile is descriptive, not necessarily a typical individual.
 
 ```{r reference-values}
 ref_age <- median(dat$age)
@@ -132,23 +106,26 @@ ref_sex <- 1                 # Male for eGFR illustrations
 ref_diabetes <- 0
 ```
 
-**Prediction API note:** `ggpredict()` normally chooses typical values for non-focal terms. For strict consistency, check its `condition` / adjustment-value arguments in your development version, or construct explicit prediction data using `predict()` on the parameterized model. The following `ggpredict()` calls demonstrate the vignette's concise interface; inspect their printed adjustment metadata before comparing panels.
+**Prediction API note:** `term_predictions()` holds non-focal predictors at their median (numeric) or most common value (categorical) unless they are given in `at`. Below, sex and diabetes are passed explicitly in `at`, so every prediction uses the same reference profile; each result prints the values it used.
 
 ## 4. Predictions on the original coordinates
 
 ```{r prediction-surfaces}
 # The output objects are data frames containing predicted values,
-# confidence limits, and focal-variable grid coordinates.
-pred_creat_sodium <- ggpredict(
+# pointwise confidence limits, simultaneous band limits, and the
+# focal-variable grid coordinates.
+reference_profile <- list(sex = ref_sex, diabetes = ref_diabetes)
+
+pred_creat_sodium <- term_predictions(
   model,
   terms = c("serum_creatinine", "serum_sodium"),
-  ci_method = "coefficient"
+  at = c(reference_profile, list(age = ref_age))
 )
 
-pred_age_creat <- ggpredict(
+pred_age_creat <- term_predictions(
   model,
   terms = c("age", "serum_creatinine"),
-  ci_method = "coefficient"
+  at = c(reference_profile, list(serum_sodium = ref_sodium))
 )
 ```
 
@@ -156,40 +133,45 @@ pred_age_creat <- ggpredict(
 
 For demonstration we use the **2021 CKD-EPI creatinine equation**, which depends on serum creatinine (mg/dL), age (years), and sex. This is an estimated kidney-function measure, not a direct measurement. Its application to these historical records is retrospective.
 
+\[
+\text{eGFR} = 142 \cdot \min(C/\kappa, 1)^{\alpha} \cdot \max(C/\kappa, 1)^{-1.200} \cdot 0.9938^{A} \cdot (1.012 \text{ if female}),
+\]
+with $\kappa = 0.7$, $\alpha = -0.241$ for women and $\kappa = 0.9$, $\alpha = -0.302$ for men.
+
 ```{r egfr-functions}
-# A simple monotone approximation that stays finite over the age and eGFR
-# ranges used in this vignette. The goal here is to demonstrate the
-# parameterization workflow, not to reproduce the exact CKD-EPI equation.
+# 2021 CKD-EPI creatinine equation (sex: 1 = male, 0 = female).
 egfr_ckdepi <- function(creatinine, age, sex) {
-  sex_shift <- ifelse(sex == 1, 0, -4)
-  90 - 18 * (creatinine - 1) - 0.35 * (age - 60) + sex_shift
+  kappa <- ifelse(sex == 1, 0.9, 0.7)
+  alpha <- ifelse(sex == 1, -0.302, -0.241)
+  142 * pmin(creatinine / kappa, 1)^alpha * pmax(creatinine / kappa, 1)^-1.200 *
+    0.9938^age * ifelse(sex == 1, 1, 1.012)
 }
 
-# Inverse transformation used to define the parameterized model.
+# Inverse transformation used to define the parameterized model: the
+# creatinine at which a patient of this age and sex has the given eGFR.
 creatinine_from_egfr <- function(egfr, age, sex) {
-  n <- max(length(egfr), length(age), length(sex))
-  egfr <- rep_len(egfr, n)
-  age <- rep_len(age, n)
-  sex <- rep_len(sex, n)
-  sex_shift <- ifelse(sex == 1, 0, -4)
-  1 + (90 - egfr + 0.35 * (age - 60) - sex_shift) / 18
+  kappa <- ifelse(sex == 1, 0.9, 0.7)
+  alpha <- ifelse(sex == 1, -0.302, -0.241)
+  ratio <- egfr / (142 * 0.9938^age * ifelse(sex == 1, 1, 1.012))
+  kappa * ifelse(ratio >= 1, ratio^(1 / alpha), ratio^(1 / -1.200))
 }
+
+# check: the inverse undoes the equation
+creatinine_from_egfr(egfr_ckdepi(c(0.6, 1, 2.5), age = 65, sex = 1), age = 65, sex = 1)
 ```
 
 The sex-dependent transformation is **not** obtained by averaging sex first. For clarity, all eGFR plots below use a fixed male reference profile. The original model still includes sex as an adjustment variable.
 
 ## 6. Parameterize the already-fitted model
 
-This is the central p-ggeffects step. We do **not** refit `model`: we change only the inputs used for prediction. For a given eGFR and age, the parameterization computes the corresponding serum creatinine.
+This is the central termeffects step. We do **not** refit `model`: we change only the inputs used for prediction. For a given eGFR and age, the parameterization computes the corresponding serum creatinine.
 
 ```{r parameterize-model}
-# A small, stable inverse mapping keeps the vignette focused on the
-# p-ggeffects parameterization workflow while remaining numerically well behaved.
 pmodel_egfr <- parameterize(
   model,
   parameterizations = list(
     serum_creatinine = function(egfr, age) {
-      1 + (90 - egfr + 0.35 * (age - 60) - ifelse(ref_sex == 1, 0, -4)) / 18
+      creatinine_from_egfr(egfr, age, sex = ref_sex)
     },
     sex = function(egfr, age) {
       rep(ref_sex, length.out = max(length(egfr), length(age)))
@@ -204,19 +186,13 @@ parameter_variables(pmodel_egfr)
 The transformed model depends on `egfr` and `age`, in addition to the original untransformed predictors such as sodium and diabetes. Its fitted coefficients remain those of `model`.
 
 ```{r prediction-egfr}
-egfr_grid <- expand.grid(
-  egfr = seq(20, 90, by = 2),
-  age = c(50, 65, 80),
-  serum_sodium = ref_sodium,
-  diabetes = ref_diabetes,
-  sex = ref_sex
+pred_egfr <- term_predictions(
+  pmodel_egfr,
+  terms = c("egfr", "age"),
+  values = list(egfr = seq(20, 90, by = 2), age = c(50, 65, 80)),
+  at = list(serum_sodium = ref_sodium, diabetes = ref_diabetes)
 )
-
-pred_egfr <- cbind(
-  egfr_grid,
-  predicted = predict(pmodel_egfr, newdata = egfr_grid)
-)
-head(pred_egfr)
+pred_egfr
 ```
 
 # Part III — Visualization
@@ -225,76 +201,56 @@ head(pred_egfr)
 
 **Focal variables:** creatinine and sodium. **Other predictors:** adjusted at reference values. **Question:** Does the adjusted association of creatinine with LVEF vary by sodium concentration?
 
-```{r plot-heatmap, fig.cap="Adjusted LVEF surface in original predictor coordinates."}
-plot(pred_creat_sodium, "heatmap")
+```{r plot-heatmap, fig.cap="Adjusted LVEF surface in original predictor coordinates. Faded: outside the region holding 97.5% of the patients."}
+term_heatmap(pred_creat_sodium, show_support = TRUE, show_data = TRUE)
 ```
 
 The density overlay is important: a smooth model can extrapolate into combinations of creatinine and sodium that are poorly represented in the sample. Interpret those regions cautiously.
 
 ## Figure 2 — Creatinine × age heatmap with constant-eGFR curves
 
-**Focal variables:** creatinine and age. **Overlay:** constant eGFR at 30, 45, 60, and 90 mL/min/1.73 m². **Other predictors:** adjusted; sex fixed at the chosen reference for the overlay.
+**Focal variables:** creatinine and age. **Overlay:** constant eGFR at 30, 45, 60, and 90 mL/min/1.73 m². **Other predictors:** adjusted; sex fixed to male.
 
-This is an annotated original-coordinate heatmap. The contours are **not** extra axes or extra facets: each contour is a one-dimensional path in the same two-dimensional predictor plane.
+This is an annotated original-coordinate heatmap. The curves are **not** extra axes or extra facets: each curve is a one-dimensional path in the same two-dimensional predictor plane.
 
 ```{r contour-data}
-# Convert the prediction object to an ordinary data frame for a transparent
-# ggplot overlay. ggpredict uses 'x' and 'group' for the first two focal terms.
-surface <- as.data.frame(pred_age_creat)
-surface$age <- as.numeric(as.character(surface$x))
-surface$serum_creatinine <- as.numeric(as.character(surface$group))
-
-# Make a fine grid solely for the deterministic eGFR contour geometry.
-contour_grid <- expand.grid(
-  age = seq(min(dat$age), max(dat$age), length.out = 120),
-  serum_creatinine = seq(
-    quantile(dat$serum_creatinine, .02),
-    quantile(dat$serum_creatinine, .98), length.out = 120
-  )
+# A layer follows curves through the heatmap: age runs along each curve
+# (t), and creatinine is the value giving that curve's eGFR at that age.
+egfr_layer <- term_layer(
+  pred_age_creat,
+  parameterization = list(
+    age = function(t) t,
+    serum_creatinine = function(t, egfr) creatinine_from_egfr(egfr, age = t, sex = ref_sex)
+  ),
+  terms = c("t", "egfr"),
+  values = list(t = seq(min(dat$age), max(dat$age), by = 1), egfr = c(30, 45, 60, 90))
 )
-contour_grid$egfr <- with(contour_grid,
-  egfr_ckdepi(serum_creatinine, age, sex = ref_sex))
 ```
 
-```{r plot-egfr-overlays, fig.cap="Original-coordinate prediction heatmap with nonlinear constant-eGFR contours."}
-ggplot(surface, aes(x = age, y = serum_creatinine)) +
-  geom_raster(aes(fill = predicted), interpolate = TRUE) +
-  geom_contour(
-    data = contour_grid,
-    aes(x = age, y = serum_creatinine, z = egfr),
-    breaks = c(30, 45, 60, 90),
-    colour = "white", linewidth = 0.65,
-    inherit.aes = FALSE
-  ) +
-  scale_fill_viridis_c(name = "Predicted LVEF (%)") +
-  labs(x = "Age (years)", y = "Serum creatinine (mg/dL)",
-       subtitle = "White curves: eGFR 30, 45, 60, 90; sex fixed to male") +
-  theme_minimal()
+```{r plot-egfr-overlays, fig.cap="Original-coordinate prediction heatmap with nonlinear constant-eGFR curves."}
+term_heatmap(pred_age_creat, layers = egfr_layer, show_support = TRUE) +
+  labs(x = "Age (years)", y = "Serum creatinine (mg/dL)")
 ```
 
-**How this connects to p-ggeffects layers:** The overlaid curves are level sets of a nonlinear parameterization of the original predictors. The code draws deterministic contour geometry with ggplot for reliability and transparency. To showcase the package's native `ggeffects_layer` implementation, replace the contour construction with `ggpredict(pred_age_creat, parameterization = ..., terms = ...)` and its corresponding layer plot once the precise overlay API is confirmed in your development checkout. The *statistical predictions* in the heatmap already come from p-ggeffects.
+**How this connects to termeffects layers:** The overlaid curves are level sets of a nonlinear parameterization of the original predictors, computed by `term_layer()`. The layer also holds the predictions along each curve, with a band that is simultaneous over the curves:
+
+```{r plot-egfr-layer-curves, fig.cap="Predicted LVEF along the constant-eGFR curves, by age."}
+term_curves(egfr_layer) + labs(x = "Age (years)")
+```
 
 ## Figure 3 — LVEF versus eGFR with simultaneous confidence bands
 
 **Focal variables:** eGFR and age (three representative ages). **Other predictors:** adjusted; sex fixed to male. **Question:** How do adjusted predictions vary over kidney-function values, and how does simultaneous uncertainty differ from pointwise uncertainty?
 
-```{r pointwise-egfr-prediction}
-pred_egfr_pointwise <- ggpredict(
-  model,
-  terms = c("serum_creatinine [0.8:4.5 by=0.2]", "age [50, 65, 80]"),
-  ci_method = "coefficient"
-)
-```
-
 ```{r plot-egfr-pointwise, fig.cap="Pointwise confidence intervals for age-stratified eGFR predictions."}
-plot(pred_egfr_pointwise, use_scb = FALSE)
+term_curves(pred_egfr, band = "pointwise")
 ```
 
 ```{r plot-egfr-simultaneous, fig.cap="Simultaneous confidence bands over the specified eGFR-by-age prediction grid."}
-plot(pred_egfr_pointwise, use_scb = TRUE)
+term_curves(pred_egfr, band = "simultaneous")
 ```
 
-The simultaneous band is calibrated for the **finite generated prediction grid**, not automatically for every point in a continuous domain. The `ci_scope` setting (where supported) controls whether uncertainty is simultaneous across the full set of age curves or separately within each age group. State that choice explicitly in any published figure.
+The simultaneous band is calibrated for the **finite generated prediction grid**, not automatically for every point in a continuous domain. The `ci_scope` setting controls whether uncertainty is simultaneous across the full set of age curves (`"global"`, the default) or separately within each age group (`"curve"`). State that choice explicitly in any published figure.
 
 ## Figure 4 — Simultaneous test against a specified linear surface
 
@@ -313,19 +269,19 @@ sim_test <- test_simultaneous_predictions(
   pred_creat_sodium,
   f = f0
 )
-head(as.data.frame(sim_test))
+sim_test
 plot(sim_test)
 ```
 
-The reference function's argument names match the **original predictors**, as required by the supplied package vignette. The plotted deviations and simultaneous band are only for the grid that was generated.
+The reference function's argument names match the **original predictors**. The plotted deviations and simultaneous band are only for the grid that was generated.
 
 ## 7. Limits of simultaneous inference after marginalization
 
-The `test_simultaneous_predictions()` implementation works on a `ggeffects` or `ggeffects_layer` object, **not on the entire original regression function**. These objects store predictions on a chosen focal grid after the remaining model predictors have been marginalized (for example, fixed at representative values). This imposes important limitations:
+The `test_simultaneous_predictions()` implementation works on a `term_predictions` or `term_layer` object, **not on the entire original regression function**. These objects store predictions on a chosen focal grid after the remaining model predictors have been fixed at representative values. This imposes important limitations:
 
 - **Restricted domain.** The simultaneous test concerns only the generated grid of focal terms, not all combinations of predictors in the original model. A conclusion for the creatinine–sodium surface does not establish a corresponding conclusion for every age, sex, or diabetes status.
-- **Marginalization is baked in.** The non-focal variables have already been reduced according to the prediction object's adjustment scheme. The test cannot recover their full variation, interactions, or the original higher-dimensional domain from that object.
-- **Scope depends on the prediction object.** A `ggeffects_layer` can restrict the domain further to selected parameterized curves. A simultaneous band over such a layer does not provide simultaneous coverage over the entire background heatmap or over unplotted curves.
+- **Marginalization is baked in.** The non-focal variables have already been fixed at the prediction object's reference values. The test cannot recover their full variation, interactions, or the original higher-dimensional domain from that object.
+- **Scope depends on the prediction object.** A `term_layer` can restrict the domain further to selected parameterized curves. A simultaneous band over such a layer does not provide simultaneous coverage over the entire background heatmap or over unplotted curves.
 - **Finite-grid inference.** The critical value is computed for the generated prediction points; it is not automatically valid uniformly over a continuous region between those points.
 - **A specified reference is not a general shape test.** Comparing against one linear `f0` only assesses that particular surface, at the chosen adjustment values. Rejecting it does not prove nonlinearity, and failing to reject it does not establish linearity. A fully general test of linearity would need to account for the family of possible linear functions and any uncertainty in estimated reference coefficients.
 
@@ -346,9 +302,9 @@ Thus, the demonstration above is intentionally a **simultaneous test against a f
 2. **Small sample.** Nonlinear interactions may be weakly identified. Consider reduced splines, bootstrap stability checks, and out-of-sample validation.
 3. **Sparse support.** Limit grids and overlays to observed or well-supported regions; not all constant-eGFR curves are represented in the data.
 4. **LVEF is the response.** The example does not use death or follow-up time, even though those fields are available.
-5. **Consistent adjustment.** Verify the adjustment profile recorded by each `ggpredict()` result, particularly for sex and diabetes. Fix sex before interpreting sex-specific eGFR contours.
+5. **Consistent adjustment.** Verify the adjustment profile printed with each `term_predictions()` result, particularly for sex and diabetes. Fix sex before interpreting sex-specific eGFR contours.
 6. **Separate fitting from presentation.** To change the grid, eGFR transformation, or plotting style, update Parts II–III. The fitted `model` in Part I remains unchanged.
 
 ## 10. Optional extension
 
-If a later dataset includes **height and weight**, the *same conceptual workflow* can be extended to a height × weight heatmap with constant-BMI and constant-body-surface-area curves. Do not add those variables to this dataset: they are not recorded in `dlookr::heartfailure`.
+If a later dataset includes **height and weight**, the *same conceptual workflow* can be extended to a height × weight heatmap with constant-BMI and constant-body-surface-area curves. Do not add those variables to this dataset: they are not recorded in `heartfailure`.

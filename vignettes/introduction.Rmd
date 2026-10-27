@@ -1,8 +1,8 @@
 ---
-title: "p-ggeffects: additional features"
+title: "termeffects: introduction"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{p-ggeffects: additional features}
+  %\VignetteIndexEntry{termeffects: introduction}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -18,23 +18,6 @@ knitr::opts_chunk$set(
   warning = FALSE
 )
 options(width = 800)
-
-pkgs <- c(
-  "ggplot2",
-  "splines",
-  "gridExtra",
-  "patchwork",
-  "see",
-  "survival",
-  "datawizard",
-  "htmltools",
-  "ggeffects",
-  "rms"
-)
-
-# if (!all(vapply(pkgs, requireNamespace, quietly = TRUE, FUN.VALUE = logical(1L)))) {
-#   knitr::opts_chunk$set(eval = TRUE)
-# }
 
 knitr::opts_chunk$set(
   eval = TRUE,
@@ -52,42 +35,29 @@ knitr::opts_chunk$set(
 
 
 
+library(termeffects)
 library(rms)
 library(splines)
+set.seed(1)
 ```
 
-```{r echo=FALSE, message=FALSE}
-library(htmltools)
-# callout_tip <- function(header = NULL, ...) {
-#   div(
-#     class = "callout-tip",
-#     tags$h1(
-#       tags$img(src = "../man/figures/summary.png", width = "20", height = "17", style = "vertical-align:middle"), # nolint
-#       header
-#     ),
-#     ...
-#   )
-# }
-# includeCSS("../man/figures/callout.css")
-```
+# Adjusted predictions
 
-# ggeffects
-
-After fitting a model, it is useful to generate model-based estimates (expected values, or adjusted predictions) of the response variable for different cobinations of predictor values. Such estimates can be used to make inferences about relationships between variables--adjusted precitions tell you: what is the expected outcome for certain values or levels of my predictors? For complex models, visualizations of marginal means and adjusted predictions are often far easier to understand and intuititively demonstrate associations of predictors and outcomes.
+After fitting a model, it is useful to generate model-based estimates (expected values, or adjusted predictions) of the response variable for different cobinations of predictor values. Such estimates can be used to make inferences about relationships between variables--adjusted precitions tell you: what is the expected outcome for certain values or levels of my predictors? For complex models, visualizations of adjusted predictions are often far easier to understand and intuititively demonstrate associations of predictors and outcomes.
 
 ## Methods
 
-`ggeffects` computes marginal mean and adjusted predictions at the mean, at representative values, or averaged across predictors from statistical models. The result is returned as a data frame with consistent structure, with a view towards ggplot plotting.
+`termeffects` computes adjusted predictions at representative values: the predictors of interest vary over a grid, and all other predictors are held at their median (numeric) or most common value (categorical), or at values chosen with `at`. The result is returned as a data frame with consistent structure, with a view towards ggplot plotting.
 
 We call predictors of interest (ie. the non-marginalized terms) focal terms.
 
 
 
-# p-ggeffects
+# From p-ggeffects to termeffects
 
-The `p-ggeffects` package is an 'generalization' of the `ggeffects` package with a focus on non-linear interactions, and non-trivial marginalizations. 
-Particularly, the deviations from `ggeffects` are focused on the introduction of `parameterized_model` objects, regular grid generation for the purpose of 2d-heatmap 
-plotting, and simultaneous inference. 
+`termeffects` began as `p-ggeffects`, a 'generalization' of the `ggeffects` package with a focus on non-linear interactions, and non-trivial marginalizations.
+Particularly, the deviations from `ggeffects` are focused on the introduction of `parameterized_model` objects, regular grid generation for the purpose of 2d-heatmap
+plotting, and simultaneous inference. `termeffects` keeps these features but no longer depends on `ggeffects`: it computes the predictions and their joint uncertainty itself.
 
 
 ## Parameterized models
@@ -97,14 +67,14 @@ various auxiliary data.
 
 We view parameterized models as a 'generalization' of generalized linear models. Consider the example $y \sim f_\beta(x) + \varepsilon$, where $f_\beta$
 is the function $x \mapsto \beta^T x$. Call the domain of interest of $f_\beta$, $\Omega'$. For a mapping $\phi: \Omega \to \Omega'$, by composition, we
-obtain a 'model' $y \sim f_\beta \circ \phi (z) + \varepsilon$. This is the classical example of a generalized additive model--the 'pullback' of the model 
-$f_\beta$ by the basis functions $\phi$. Notice however, that a data set $(Y, X)$ in $\Omega'$ does not in general induce an estimate of $\beta$ (viewed 
-as the coefficients of $f\circ \phi$). Indeed, the points of $X$ may not lie in $\phi(\Omega)$, and even if so, there may not be a unique preimage. 
+obtain a 'model' $y \sim f_\beta \circ \phi (z) + \varepsilon$. This is the classical example of a generalized additive model--the 'pullback' of the model
+$f_\beta$ by the basis functions $\phi$. Notice however, that a data set $(Y, X)$ in $\Omega'$ does not in general induce an estimate of $\beta$ (viewed
+as the coefficients of $f\circ \phi$). Indeed, the points of $X$ may not lie in $\phi(\Omega)$, and even if so, there may not be a unique preimage.
 
 In this light, rather than as a regression model, we view parameterized models instead as generalizations of marginalization by taking $x_i = c$. Indeed, taking
-$f_\beta: \mathbb R^n \to \mathbb R$ as above, the describe marginalization is equivalent to the parameterization $\phi: \mathbb R^{n-1} \to \mathbb R^n$ 
-given by $\phi(x_1, \ldots, x_{n-1}) = (x_1, \ldots, x_{i-1}, c, x_i, \ldots, x_{n-1})$. Following the philosophy of the `ggeffects` package, for a more 
-complex model $f_\beta$, we may visualize and interpret the effect of a (non-primary) variable of interest by plotting its marginalization at a finite (>1) 
+$f_\beta: \mathbb R^n \to \mathbb R$ as above, the describe marginalization is equivalent to the parameterization $\phi: \mathbb R^{n-1} \to \mathbb R^n$
+given by $\phi(x_1, \ldots, x_{n-1}) = (x_1, \ldots, x_{i-1}, c, x_i, \ldots, x_{n-1})$. Following the philosophy of the `ggeffects` package, for a more
+complex model $f_\beta$, we may visualize and interpret the effect of a (non-primary) variable of interest by plotting its marginalization at a finite (>1)
 set of values.
 
 ### Basic methods
@@ -172,17 +142,16 @@ The methods are as follows:
 
 
 
-## ggeffects methods for parameterized models
+## Predictions for parameterized models
 
-The methods `ggpredict()`, `ggeffect()`, `ggaverage()`, and `ggemmeans()` underlying the `ggeffects` package were "generalized" and implemented for parameterized model objects, with some 
-additional features and modified syntax. These modifications include:
+`term_predictions()` works for parameterized model objects as for fitted models, with some
+additional features:
 
-* Deprecation of weighted mean marginalization
-* Deprecation of adaptive 'grids' in favour of regular grids (for heatmap visualization)
-* Removal of support for offset terms
-* Additional computation of critical values for 'simultaneous' confidence bands by parametric and non-parameteric bootstrap.
+* Regular grids (for heatmap visualization); the ranges of new variables are found by a search, or given with `values`
+* No support for offset terms
+* Computation of critical values for 'simultaneous' confidence bands by simulation from the coefficients' distribution, or by non-parametric bootstrap.
 
-Additionally, implements pairwise testing and simultaneous testing for parameterized models
+Additionally, implements simultaneous testing for parameterized models
 
 ```{r}
 x <- rnorm(500)
@@ -192,8 +161,7 @@ y <- x + z + rnorm(500)
 model <- lm(y ~ x + z)
 pmodel <- parameterize(model, parameterizations = list(x = \(t, s) t^3 + s, z = \(t) t^2))
 
-ggout <- ggpredict(pmodel, terms = c("t", "s [-1, 0, 1]"), ci_method = "coef")
-# coefficient = parameteric bootstrap (where available)
+ggout <- term_predictions(pmodel, terms = c("t", "s"), values = list(s = c(-1, 0, 1)))
 
 ggout
 
@@ -201,14 +169,11 @@ ggout |> as.data.frame() |> head()
 
 
 ### prediction testing
-test_predictions(ggout) |> head()
-
 # requires function in original variables
-# currently an error where this method doesn't load
 test_simultaneous_predictions(ggout, f = \(x, z) x - z) |> as.data.frame() |> head()
 test_simultaneous_predictions(ggout, f = \(x, z) x  +  z) -> test
 
-# attr(test, "scb_contains_f")
+attr(test, "all_inside")
 test |> as.data.frame() |> head()
 ```
 
@@ -225,8 +190,8 @@ $$
 
 The set-valued function $C_\beta: \Omega \to 2^\mathbb{R}$ is the pointwise confidence interval. In particular, one only draws pointwise inferences about $f_\beta$, effectively,
 by means of hypothesis tests of the for $H_0: f_\beta(x) = f_0$, which we reject iff $f_\beta(x) \not\in C_\beta(x)$. One may naively attempt to extend this pointwise test
-to a global test by means of multiple joint hypothesis tests, $H_0$ & $H_1$ & $\cdots$ & $H_n$--corrected with multiple hypothesis corrections. In the case where we 
-correct uniformly accros the domain of interest, $\Omega$, we obtain the standard hyperbolic simultaneous confidence band: the set-valued function 
+to a global test by means of multiple joint hypothesis tests, $H_0$ & $H_1$ & $\cdots$ & $H_n$--corrected with multiple hypothesis corrections. In the case where we
+correct uniformly accros the domain of interest, $\Omega$, we obtain the standard hyperbolic simultaneous confidence band: the set-valued function
 $C_\beta: \Omega \to 2^{\mathbb R}$ given by
 
 $$
@@ -237,8 +202,8 @@ By construction, particulary, the supremum, we observe that this confidence band
 
 
 Observe that there is not an elementary closed form for the distribution, in general. Hence, we compute it via simulation or bootstrap based methods. For nice models
-(ie. generlized linear models) we can sample from the distribution of the regression coefficients, for less nice models, we must refit several models, then estimate. In particular, 
-in p-ggeffects, we implement two methods (in addition to the pointwise confidence band)
+(ie. generlized linear models) we can sample from the distribution of the regression coefficients, for less nice models, we must refit several models, then estimate. In particular,
+in termeffects, we implement two methods (in addition to the pointwise confidence band). For generalized linear models the band is computed on the scale of the linear predictor and then transformed, so it respects the range of the outcome (e.g. probabilities stay within 0 and 1).
 
 ```{r}
 
@@ -248,15 +213,14 @@ y <- rnorm(500) + x^2 - 0.5 * z
 
 model <- lm(y ~ x + I(x^2) + I(x * z) + z)
 
-out1 <- ggpredict(model, terms = c("x", "z [-1, 0, 1]"), ci_level = 0.95, ci_method = "pointwise")
-out2 <- ggpredict(model, terms = c("x", "z [-1, 0, 1]"), ci_level = 0.95, ci_method = "bootstrap")
-out3 <- ggpredict(model, terms = c("x", "z [-1, 0, 1]"), ci_level = 0.95, ci_method = "coefficient")
+out2 <- term_predictions(model, terms = c("x", "z"), values = list(z = c(-1, 0, 1)), ci_level = 0.95, ci_method = "bootstrap", nboot = 500)
+out3 <- term_predictions(model, terms = c("x", "z"), values = list(z = c(-1, 0, 1)), ci_level = 0.95, ci_method = "analytic")
 
 
 head(out3)
 
-plot(out3, use_scb = FALSE)
-plot(out3, use_scb = TRUE)
+term_curves(out3, band = "pointwise")
+term_curves(out3, band = "simultaneous")
 
 
 sim1 <- test_simultaneous_predictions(out3, f = \(x, z) x - 0.5 * z)
@@ -264,45 +228,46 @@ head(sim1)
 plot(sim1)
 
 ```
-In addition, by specifying `ci_scope = c("global", "faceted")`, one may impose further marginalization (with respect to the uncertainty estimation).
+In addition, by specifying `ci_scope = c("global", "faceted", "curve")`, one may impose further marginalization (with respect to the uncertainty estimation).
 for the purpose of inference:
 ```
-out <- ggpredict(model, terms = c("x", "z", "a [-1, 0, 1]", "b [-1, 0, 1]"), ci_method = "pointwise", ci_scope = "facetd")
+out <- term_predictions(model, terms = c("x", "z", "a", "b"), values = list(a = c(-1, 0, 1), b = c(-1, 0, 1)), ci_scope = "faceted")
 ```
 provides simultaneous confidence bands $C^\alpha_{a, b}: \Omega|_{a, b} \to 2^{\mathbb R}$ for $(a,b) \in \{-1, 0, 1\}^2$.
 
 #### Utility
 
-In the case of regression models with more than 4 variables, the simultaneous confidence band based inference implemented in p-ggeffects
-allows far more restricted inferences. Indeed, the underlying foundational object of the ggeffects package, the `ggeffect` object is a
-marginalized data grid, together with its respective prediction. The coefficient based inference is determined from the observations, whereas 
+In the case of regression models with more than 4 variables, the simultaneous confidence band based inference implemented in termeffects
+allows far more restricted inferences. Indeed, the underlying foundational object, the `term_predictions` object, is a
+marginalized data grid, together with its respective prediction. The coefficient based inference is determined from the observations, whereas
 (still essentially coefficient based) simultaneous confidence testing requires the additional specification of the domain (which can be lost).
 
 
-## ggpredict_layer objects and plotting
-Given some base `ggeffects` object (an adjusted marginalized prediction grid as returned by ggpredict, or one of the other methods), a `ggeffects_layer` object is a list of `ggeffects` object, where the underlying models of each non-base object is a 'parameterization' of the base objects underlying model subject to some restrictions:
- - the auxiliary variables are all equal to those of the base (facet, panel, grid, response_level)
+## term_layer objects and plotting
+Given some base `term_predictions` object (an adjusted prediction grid over two continuous focal terms), a `term_layer` object holds predictions along curves through it, where the underlying model is a 'parameterization' of the base object's underlying model subject to some restrictions:
+ - the held-constant variables are all equal to those of the base
  - only the two primary variables were parameterized
- - the total number of parameters of each parameterization does not increase
+ - the total number of new parameters is at most two
 In particular, each layer either induces a 1-parametric curve or 2-parameteric curve (which induces a set of 1-parametric curves) in the domain of the base model.
 
-`ggeffects_layer` objects were introduced due to the additional difficulty of interpreting heatmap visualizations. The main difficulties are two fold (but 
-both the result of colour scale usage): difficulty of distinguishing color values, and diffiliculty contrasting values between points, additionally, . `ggeffects_layers` track data for 
-plotting, allowing the generatation of 'anotated' heatmaps--collections of heatmaps with overlays of discrete families of 1-parameteric curves, and plots of prediction data
-variability along the curves. 
+`term_layer` objects were introduced due to the additional difficulty of interpreting heatmap visualizations. The main difficulties are two fold (but
+both the result of colour scale usage): difficulty of distinguishing color values, and diffiliculty contrasting values between points. `term_layer` objects track data for
+plotting, allowing the generatation of 'anotated' heatmaps--heatmaps with overlays of discrete families of 1-parameteric curves, and plots of prediction data
+variability along the curves.
 
-Note: marginalizations of ggeffects predictions are parameteric. For example, in the case of standard marginalization $x_i = c$, this method (`ggpredict.ggeffects_layer()`) requires 
+Note: marginalizations of predictions are parameteric. For example, in the case of standard marginalization $x_i = c$, this method (`term_layer()`) requires
 parameterizations: `list(x1 = "t1", ..., xn = "tn")`.
 
 
 ### Plotting
-As described, `p-ggeffects` extends the plotting feature of `ggeffects` to _two_ additional plot types, and various subfeatures, namely:
-* Heatmaps 
-* - standard error plotting (on seperate heatmap)
-* - kernel smoothing density estimation
-* Heatmaps with overlays
-* Difference plotting for predicted value vs estimated function
-* directional plotting
+As described, `termeffects` provides _two_ plot types for surfaces, and various subfeatures, namely:
+
+* Heatmaps (`term_heatmap()`)
+    * standard error or band-width plotting (on seperate heatmap, `fill = "std.error"` or `"band_width"`)
+    * kernel smoothing density estimation (`show_support = TRUE`)
+* Heatmaps with overlays (`layers = `)
+* Difference plotting for predicted value vs estimated function (`plot(test, "difference")`)
+* directional plotting (`show_direction = TRUE`)
 
 Ex:
 ``` {r}
@@ -315,45 +280,31 @@ y <- x - z + rnorm(500, sd = 2)
 model <- lm(y ~ x + z)
 pmodel <- parameterize(model, list(x = "s", z = "s - t"))
 
-pout <- ggpredict(pmodel, terms = c("t", "s"))
+pout <- term_predictions(pmodel, terms = c("t", "s"))
 
 
-plot(pout, "heatmap", show_kernel_density = TRUE)
+term_heatmap(pout, show_support = TRUE)
 
-ppout1 <- ggpredict(pout, 
-                    parameterization = list(t = "w^2", 
-                                            s = "w^3"), 
-                    terms = "w")
-                    
-ppout2 <- ggpredict(pout, 
-                    parameterization = list(t = "r + w^2", 
-                                            s = "r + w^3"), 
-                    terms = c("w", "r [-1, 0, 1]"))
-                    
-      
+ppout1 <- term_layer(pout,
+                     parameterization = list(t = "w^2",
+                                             s = "w^3"),
+                     terms = "w",
+                     values = list(w = seq(-1, 1, by = 0.05)))
+
+ppout2 <- term_layer(pout,
+                     parameterization = list(t = "r + w^2",
+                                             s = "r + w^3"),
+                     terms = c("w", "r"),
+                     values = list(w = seq(-1, 1, by = 0.05), r = c(-1, 0, 1)))
+
+
 ppout1 |> head()
 
 ppout2 |> head()
-           
-plot(ppout1)
-   
-plot(ppout2, show_direction = FALSE)     
-                           
+
+term_heatmap(pout, layers = ppout1)
+term_curves(ppout1, show_direction = TRUE)
+
+term_heatmap(pout, layers = ppout2, show_direction = FALSE)
+
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

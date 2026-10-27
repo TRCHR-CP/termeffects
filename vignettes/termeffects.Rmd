@@ -17,8 +17,8 @@ knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7, fig.height
 Splines let a model follow curved relationships, and interactions let the
 effect of one variable depend on another. Together they fit real data well,
 but their coefficients are almost impossible to read: a spline interaction
-between age and BMI can have a dozen coefficients, none of which means much
-on its own.
+between creatinine and sodium can have a dozen coefficients, none of which
+means much on its own.
 
 The way to understand such a model is to **look at its predictions**:
 
@@ -30,64 +30,102 @@ termeffects does this for models you have already fitted with `rms`,
 `stats`, `survival`, `lme4` or `mgcv`. You fit the model as usual; termeffects
 only works with the fitted model.
 
-## An example
+## An example: ejection fraction in heart failure
 
-Suppose we have a quality-of-life score between 0 and 100, and we suspect
-that its relationship with age depends on BMI. A proportional odds model
-(`rms::orm`) suits a bounded score like this: its predictions always stay
-within the observed range.
+The `heartfailure` data hold clinical records of 299 patients with heart
+failure. The outcome is the left ventricular **ejection fraction** (LVEF), a
+percentage between 14 and 80 that takes only 17 different values. A
+proportional odds model (`rms::orm`) suits an outcome like this: it makes no
+assumption about the shape of its distribution, and its predicted means
+always stay within the observed range.
 
-```{r data}
+We let the association with serum creatinine depend on serum sodium through
+a spline interaction, and adjust for eight other covariates.
+
+```{r data, message = FALSE}
 library(termeffects)
 library(rms)
 
-set.seed(7)
-n <- 400
-d <- data.frame(age = runif(n, 30, 85), bmi = runif(n, 18, 40),
-                sex = factor(sample(c("female", "male"), n, TRUE)))
-d$score <- round(pmin(100, pmax(0, 60 + 25 * sin((d$age - 30) / 18) * (d$bmi - 29) / 11 +
-                                 3 * (d$sex == "male") + rnorm(n, sd = 12))))
+hf <- heartfailure
+hf$platelets <- hf$platelets / 1000   # thousands per microlitre
 
-fit <- orm(score ~ rcs(age, 4) * rcs(bmi, 4) + sex, data = d)
+fit <- orm(ejection_fraction ~ rcs(creatinine, 4) * rcs(sodium, 4) + rcs(age, 4) +
+             sex + diabetes + anaemia + hblood_pressure + smoking +
+             rcs(platelets, 3) + rcs(log(cpk_enzyme), 3),
+           data = hf, x = TRUE, y = TRUE)
 ```
+
+(Predictors measured in the hundreds of thousands, such as platelets per
+microlitre, can make an orm model numerically unstable; rescaling them, or
+using the log of a skewed lab value such as CPK, avoids that.)
 
 ## Step 1: the heatmap
 
 `term_predictions()` predicts the outcome over a grid of the two **focal**
 variables. Everything else in the model is **held constant**: numeric
-variables at their mean, categorical variables at their reference level.
-The plot says which values were used.
+variables at their median, categorical variables at their most common value.
+Creatinine is very skewed, so we look at 0.5 to 4 mg/dL, where almost all
+patients are.
 
 ```{r heatmap}
-surface <- term_predictions(fit, c("age", "bmi"), n = 60)
-term_heatmap(surface, show_data = TRUE)
+set.seed(1)
+surface <- term_predictions(fit, c("creatinine", "sodium"),
+                            values = list(creatinine = seq(0.5, 4, length.out = 50)), n = 50)
+term_heatmap(surface, show_data = TRUE, show_support = TRUE)
 ```
 
-Colour shows the predicted mean score, and the white contour lines join
-points with the same prediction. The dots are the patients in the data: where
-there are none, the surface is an extrapolation and should not be
-over-interpreted.
-
-Here the heatmap tells the story at a glance: at low BMI the score dips in
-middle age, at high BMI it peaks in middle age, and around BMI 30 age hardly
-matters.
+Colour shows the predicted mean LVEF, and the white contour lines join
+points with the same prediction. The dots are the patients. The faded areas
+lie outside the region holding 97.5% of the patients: there the surface is an
+extrapolation and should not be over-interpreted.
 
 ## Step 2: cuts through the surface
 
-To present this, or to judge how certain it is, take a few **cuts**: fix BMI
-at some values and plot the score against age. First mark the cuts on the
-heatmap:
-
-```{r heatmap-cuts}
-cut_values <- list(bmi = c(22, 30, 38))
-term_heatmap(surface, cuts = cut_values)
-```
-
-Then compute and plot the curves along those lines:
+To present this, or to judge how certain it is, take a few **cuts**: fix
+sodium at some values and plot LVEF against creatinine. First mark the cuts on
+the heatmap, then compute and plot the curves along those lines:
 
 ```{r cuts}
-cuts <- term_predictions(fit, c("age", "bmi"), values = cut_values)
+cut_values <- list(sodium = c(130, 137, 142))
+term_heatmap(surface, cuts = cut_values)
+
+cuts <- term_predictions(fit, c("creatinine", "sodium"),
+                         values = list(creatinine = seq(0.5, 4, length.out = 50), sodium = c(130, 137, 142)))
 term_curves(cuts)
+```
+
+## Step 3: a figure with its caption
+
+With ten covariates, the values at which the others are held cannot be
+written into a plot title. `term_figure()` returns the plots together with
+the information a reader needs:
+
+```{r figure}
+fig <- term_figure(surface, cuts = cut_values, show_data = TRUE)
+names(fig)
+```
+
+`fig$heatmap` and `fig$curves` are ordinary ggplot2 plots, and
+`fig$uncertainty` shows where the surface is estimated precisely:
+
+```{r figure-plots}
+fig$curves
+fig$uncertainty
+```
+
+`fig$covariates` lists every covariate that is held constant, its value and
+why that value was chosen:
+
+```{r figure-covariates}
+fig$covariates
+```
+
+and `fig$caption` is a figure legend in words: what is predicted, from which
+model, how the two focal variables enter it, the values of all other
+covariates and which intervals are shown.
+
+```{r figure-caption, results = "asis"}
+cat(fig$caption)
 ```
 
 ## Pointwise or simultaneous?
@@ -95,17 +133,15 @@ term_curves(cuts)
 Each curve has a shaded **simultaneous confidence band**. It is built so that,
 with 95% confidence, *all three true curves lie entirely inside their bands
 at the same time*. That makes it the right tool for questions about the
-**shape** of the curves:
+**shape** of the curves: for example, whether the curve for sodium 142 could
+be flat (a horizontal line fits inside its band) or whether the curves for
+different sodium levels really differ.
 
-* Could the curve for BMI 30 be flat? Yes: a horizontal line fits inside its
-  band.
-* Is the dip at BMI 22 real? Yes: no horizontal line fits inside that band.
-
-The familiar **pointwise** interval only makes a statement about *one* age at
-a time. Using it to judge a whole curve is like doing dozens of tests without
-correcting for multiple testing: it finds patterns that are not there too
-often. `band = "both"` shows the two together; the simultaneous band is
-always the wider one.
+The familiar **pointwise** interval only makes a statement about *one*
+creatinine value at a time. Using it to judge a whole curve is like doing
+dozens of tests without correcting for multiple testing: it finds patterns
+that are not there too often. `band = "both"` shows the two together; the
+simultaneous band is always the wider one.
 
 ```{r both}
 term_curves(cuts, band = "both")
@@ -118,17 +154,50 @@ cuts
 ```
 
 The *critical values* in the header are the multipliers of the standard
-error: 1.96 for a pointwise 95% interval, and a larger value (here about 3)
-for the simultaneous band.
+error: 1.96 for a pointwise 95% interval, and a larger value for the
+simultaneous band.
+
+To test a specific curve, for example a published reference, against the
+band, see `test_simultaneous_predictions()` and the vignette "termeffects:
+introduction".
 
 ## Holding other variables at chosen values
 
-The predictions above are for women, the reference level of `sex`. Use `at`
-to choose other values, e.g. for men:
+The predictions above are for a 60-year-old man without diabetes and so on,
+the median and most common values. Use `at` to choose other values, e.g. for
+women with diabetes:
 
 ```{r at}
-men <- term_predictions(fit, c("age", "bmi"), values = cut_values, at = list(sex = "male"))
-term_curves(men)
+women <- term_predictions(fit, c("creatinine", "sodium"),
+                          values = list(creatinine = seq(0.5, 4, length.out = 50), sodium = c(130, 137, 142)),
+                          at = list(sex = "Female", diabetes = "Yes"))
+term_curves(women)
+```
+
+## How the intervals for an orm model are computed
+
+For `orm` models, the default intervals are computed for the model's linear
+predictor and then transformed to the mean, as `rms::Predict(fit, fun =
+Mean(fit))` does. Two alternatives are available:
+
+* `ci_method = "delta"`: the delta method on the mean scale, including the
+  uncertainty of all intercepts (as `rms::Mean(fit)(X = , conf.int = )`),
+* `ci_method = "bootstrap"`: the model is refitted on resampled data with
+  `rms::bootcov()` (the model must be fitted with `x = TRUE, y = TRUE`).
+
+We compared the three in simulations in which the true mean is known
+(`validation/08_orm_interval_methods.R` in the package sources). The
+default covered the true curves as often as it should (95%) or slightly more;
+the delta method and the bootstrap covered them slightly less often, so they
+are not more accurate here, only slower or more complicated. The bootstrap
+is still useful as a check:
+
+```{r bootstrap}
+set.seed(2)
+cuts_boot <- term_predictions(fit, c("creatinine", "sodium"),
+                              values = list(creatinine = seq(0.5, 4, length.out = 30), sodium = c(130, 137, 142)),
+                              ci_method = "bootstrap", nboot = 300)
+term_curves(cuts_boot)
 ```
 
 ## Other models
@@ -149,14 +218,12 @@ Use `scale = "link"` to see the linear predictor (e.g. log-odds) instead.
 ## What the bands do and do not cover
 
 * Bands are simultaneous **over the grid of points that is plotted**, with
-  the other variables held at the stated values. A finer grid (larger `n`)
-  makes the band closer to one for the whole continuous range.
+  the other variables held at the stated values. A finer grid makes the band
+  closer to one for the whole continuous range.
 * Bands are computed on the scale of the linear predictor and then
   transformed, so they stay within the possible range of the outcome (0–1 for
   probabilities, the observed range for `orm`).
-* For `orm` models, as in `rms::Predict()`, the bands include the
-  uncertainty in the covariate effects but not in the full baseline
-  distribution. In simulations they were slightly conservative (98% coverage
-  for a 95% band).
 * The simultaneous critical value is found by simulation. Use `set.seed()`
   before `term_predictions()` for exactly reproducible bands.
+* The data are observational and the sample is small; the surfaces show
+  associations, not effects.
