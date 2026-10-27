@@ -131,3 +131,23 @@ test_that("layers follow parameterized curves through the heatmap", {
   expect_error(term_layer(out, list(y = "t")), "heatmap variables")
   expect_error(term_layer(out, list(x = function(t) t, z = function(t, x) x + t)), "as an input")
 })
+
+
+test_that("vcov works for parameterized predictions", {
+  # adapted from the student's test of vcov() for parameterized ggeffects objects
+  # (with noise added, since a perfect fit makes summary.lm warn)
+  dat <- data.frame(
+    y = 1:20 + sin(1:20),
+    x = seq(-2, 2, length.out = 20)
+  )
+  fit <- lm(y ~ x, data = dat)
+  pfit <- parameterize(fit, list(x = function(a, b) a + b))
+
+  predictions <- term_predictions(pfit, terms = c("a", "b"), values = list(a = -1:1, b = 0:1))
+  covariance <- vcov(predictions)
+
+  expect_true(is.matrix(covariance))
+  expect_equal(dim(covariance), c(nrow(predictions), nrow(predictions)))
+  expect_false(anyNA(covariance))
+  expect_equal(sqrt(diag(covariance)), predictions$std.error)
+})

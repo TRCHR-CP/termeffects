@@ -1,6 +1,7 @@
 # ============================================================
 # Parameterization history printer
-# Written by Lukas Bolsinger for p-ggeffects; copied unchanged.
+# Written by Lukas Bolsinger for p-ggeffects; copied unchanged except that
+# box-drawing characters are written as \u escapes (required by CRAN).
 # ============================================================
 
 .print_parameterization_history <- function(history) {
@@ -533,7 +534,7 @@
 
             pieces[[stage]] <- paste0(
               pieces[[stage]],
-              " <─────┐"
+              " <\u2500\u2500\u2500\u2500\u2500\u2510"
             )
           }
         }
@@ -570,7 +571,7 @@
 
       pieces[[dag$n_stages]] <- paste0(
         pieces[[dag$n_stages]],
-        " <── ",
+        " <\u2500\u2500 ",
         paste(
           inputs_here,
           collapse = ", "
@@ -582,7 +583,7 @@
     #   pieces <- c(
     #     pieces,
     #     paste0(
-    #       "<──── ",
+    #       "<---- ",
     #       paste(
     #         inputs_here,
     #         collapse = ", "

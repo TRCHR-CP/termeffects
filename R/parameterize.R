@@ -813,6 +813,7 @@ is.parameterized_model <- function(x){
   }
 }
 
+#' @export
 `$.parameterized_model` <- function(x, name){
   if(name %in% names(x)){
     x[[name]]

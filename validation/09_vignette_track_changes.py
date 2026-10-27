@@ -59,7 +59,7 @@ def main():
         new = Path("vignettes", current).read_text(encoding="utf-8")
         body, counts = redline(old, new)
         anchor = current.replace(".", "-")
-        toc.append(f'<li><a href="#{anchor}">{current}</a> (student: {student_name}) &mdash; '
+        toc.append(f'<li><a href="#{anchor}">{current}</a> (student: {student_name}): '
                    f'{counts["deleted"]} words deleted, {counts["inserted"]} inserted</li>')
         sections.append(f'<section id="{anchor}"><h2>{current}</h2>'
                         f'<p class="meta">Student\'s original: vignettes/{student_name} in p-ggeffects</p>'

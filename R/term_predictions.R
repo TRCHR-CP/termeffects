@@ -159,6 +159,7 @@ term_predictions <- function(model,
   attr(out, "to_inference_scale") <- inference$to_inference_scale
   attr(out, "df") <- df
   attr(out, "nboot") <- inference$nboot
+  attr(out, "vcov_parts") <- inference$vcov_parts
   attr(out, "scale") <- scale
   attr(out, "focal") <- focal
   attr(out, "held") <- attr(newdata, "held")
@@ -229,7 +230,8 @@ term_predictions <- function(model,
   }
 
   list(estimate = estimate, se = se, df = df, transform = transform,
-       to_inference_scale = to_inference_scale, max_t = max_t, nboot = nboot)
+       to_inference_scale = to_inference_scale, max_t = max_t, nboot = nboot,
+       vcov_parts = if (ci_method != "bootstrap") list(G = G, V = V))
 }
 
 
@@ -293,4 +295,28 @@ print.term_predictions <- function(x, n = 10, ...) {
     how <- if (rules && !is.null(rule[name]) && !is.na(rule[name])) paste0(" (", rule[[name]], ")") else ""
     paste0(name, " = ", value, how)
   }, character(1), USE.NAMES = FALSE)
+}
+
+
+#' Covariance matrix of predictions
+#'
+#' The joint covariance of the predictions in a [term_predictions()] result,
+#' on the scale its intervals are computed on (the scale of `std.error`).
+#' Ported from Lukas Bolsinger's `vcov()` for parameterized predictions in
+#' p-ggeffects.
+#'
+#' @param object A [term_predictions()] result with analytic intervals.
+#' @param ... Not used.
+#' @return A square matrix with one row and column per grid point.
+#' @examples
+#' fit <- lm(mpg ~ splines::ns(hp, 3), data = mtcars)
+#' pred <- term_predictions(fit, "hp", n = 5)
+#' all.equal(sqrt(diag(vcov(pred))), pred$std.error)
+#' @export
+vcov.term_predictions <- function(object, ...) {
+  parts <- attr(object, "vcov_parts")
+  if (is.null(parts)) {
+    stop("The covariance is only stored for analytic intervals, not bootstrap ones.", call. = FALSE)
+  }
+  unname(parts$G %*% parts$V %*% t(parts$G))
 }
