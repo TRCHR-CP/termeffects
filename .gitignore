@@ -1,1 +1,7 @@
 .Rproj.user
+/doc/
+/Meta/
+vignettes/*.html
+vignettes/*_files
+validation/output/vignettes/
+validation/output/*.html

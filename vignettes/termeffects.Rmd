@@ -1,0 +1,162 @@
+---
+title: "Seeing non-linear interactions: heatmaps and cuts"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Seeing non-linear interactions: heatmaps and cuts}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7, fig.height = 4.5,
+                      eval = requireNamespace("rms", quietly = TRUE))
+```
+
+## Why this package
+
+Splines let a model follow curved relationships, and interactions let the
+effect of one variable depend on another. Together they fit real data well,
+but their coefficients are almost impossible to read: a spline interaction
+between age and BMI can have a dozen coefficients, none of which means much
+on its own.
+
+The way to understand such a model is to **look at its predictions**:
+
+1. A **heatmap** shows the predicted outcome over two variables at once.
+2. **Cuts** through the heatmap show a few curves, each with an uncertainty
+   band, which are easier to compare and present.
+
+termeffects does this for models you have already fitted with `rms`,
+`stats`, `survival`, `lme4` or `mgcv`. You fit the model as usual; termeffects
+only works with the fitted model.
+
+## An example
+
+Suppose we have a quality-of-life score between 0 and 100, and we suspect
+that its relationship with age depends on BMI. A proportional odds model
+(`rms::orm`) suits a bounded score like this: its predictions always stay
+within the observed range.
+
+```{r data}
+library(termeffects)
+library(rms)
+
+set.seed(7)
+n <- 400
+d <- data.frame(age = runif(n, 30, 85), bmi = runif(n, 18, 40),
+                sex = factor(sample(c("female", "male"), n, TRUE)))
+d$score <- round(pmin(100, pmax(0, 60 + 25 * sin((d$age - 30) / 18) * (d$bmi - 29) / 11 +
+                                 3 * (d$sex == "male") + rnorm(n, sd = 12))))
+
+fit <- orm(score ~ rcs(age, 4) * rcs(bmi, 4) + sex, data = d)
+```
+
+## Step 1: the heatmap
+
+`term_predictions()` predicts the outcome over a grid of the two **focal**
+variables. Everything else in the model is **held constant**: numeric
+variables at their mean, categorical variables at their reference level.
+The plot says which values were used.
+
+```{r heatmap}
+surface <- term_predictions(fit, c("age", "bmi"), n = 60)
+term_heatmap(surface, show_data = TRUE)
+```
+
+Colour shows the predicted mean score, and the white contour lines join
+points with the same prediction. The dots are the patients in the data: where
+there are none, the surface is an extrapolation and should not be
+over-interpreted.
+
+Here the heatmap tells the story at a glance: at low BMI the score dips in
+middle age, at high BMI it peaks in middle age, and around BMI 30 age hardly
+matters.
+
+## Step 2: cuts through the surface
+
+To present this, or to judge how certain it is, take a few **cuts**: fix BMI
+at some values and plot the score against age. First mark the cuts on the
+heatmap:
+
+```{r heatmap-cuts}
+cut_values <- list(bmi = c(22, 30, 38))
+term_heatmap(surface, cuts = cut_values)
+```
+
+Then compute and plot the curves along those lines:
+
+```{r cuts}
+cuts <- term_predictions(fit, c("age", "bmi"), values = cut_values)
+term_curves(cuts)
+```
+
+## Pointwise or simultaneous?
+
+Each curve has a shaded **simultaneous confidence band**. It is built so that,
+with 95% confidence, *all three true curves lie entirely inside their bands
+at the same time*. That makes it the right tool for questions about the
+**shape** of the curves:
+
+* Could the curve for BMI 30 be flat? Yes: a horizontal line fits inside its
+  band.
+* Is the dip at BMI 22 real? Yes: no horizontal line fits inside that band.
+
+The familiar **pointwise** interval only makes a statement about *one* age at
+a time. Using it to judge a whole curve is like doing dozens of tests without
+correcting for multiple testing: it finds patterns that are not there too
+often. `band = "both"` shows the two together; the simultaneous band is
+always the wider one.
+
+```{r both}
+term_curves(cuts, band = "both")
+```
+
+The numbers behind the plots are in an ordinary data frame:
+
+```{r table}
+cuts
+```
+
+The *critical values* in the header are the multipliers of the standard
+error: 1.96 for a pointwise 95% interval, and a larger value (here about 3)
+for the simultaneous band.
+
+## Holding other variables at chosen values
+
+The predictions above are for women, the reference level of `sex`. Use `at`
+to choose other values, e.g. for men:
+
+```{r at}
+men <- term_predictions(fit, c("age", "bmi"), values = cut_values, at = list(sex = "male"))
+term_curves(men)
+```
+
+## Other models
+
+The same functions work for:
+
+| Model | Outcome scale (default) |
+|:--|:--|
+| `lm()` | predicted outcome |
+| `glm()` | e.g. probability for logistic models |
+| `rms::orm()` | mean outcome |
+| `survival::coxph()` | hazard ratio versus an average subject |
+| `lme4::lmer()`, `lme4::glmer()` | population-level prediction |
+| `mgcv::gam()` | predicted outcome |
+
+Use `scale = "link"` to see the linear predictor (e.g. log-odds) instead.
+
+## What the bands do and do not cover
+
+* Bands are simultaneous **over the grid of points that is plotted**, with
+  the other variables held at the stated values. A finer grid (larger `n`)
+  makes the band closer to one for the whole continuous range.
+* Bands are computed on the scale of the linear predictor and then
+  transformed, so they stay within the possible range of the outcome (0–1 for
+  probabilities, the observed range for `orm`).
+* For `orm` models, as in `rms::Predict()`, the bands include the
+  uncertainty in the covariate effects but not in the full baseline
+  distribution. In simulations they were slightly conservative (98% coverage
+  for a 95% band).
+* The simultaneous critical value is found by simulation. Use `set.seed()`
+  before `term_predictions()` for exactly reproducible bands.

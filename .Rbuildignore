@@ -3,3 +3,8 @@
 ^LICENSE\.md$
 ^README\.Rmd$
 ^validation$
+^DEVELOPMENT_LOG\.md$
+^Claude_memory\.md$
+^how_i_started\.R$
+^doc$
+^Meta$
