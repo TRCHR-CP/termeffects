@@ -180,17 +180,26 @@ For `orm` models, the default intervals are computed for the model's linear
 predictor and then transformed to the mean, as `rms::Predict(fit, fun =
 Mean(fit))` does. Two alternatives are available:
 
-* `ci_method = "delta"`: the delta method on the mean scale, including the
-  uncertainty of all intercepts (as `rms::Mean(fit)(X = , conf.int = )`),
 * `ci_method = "bootstrap"`: the model is refitted on resampled data with
-  `rms::bootcov()` (the model must be fitted with `x = TRUE, y = TRUE`).
+  `rms::bootcov()` (the model must be fitted with `x = TRUE, y = TRUE`),
+* `ci_method = "delta"`: the delta method on the mean scale, including the
+  uncertainty of all intercepts (as `rms::Mean(fit)(X = , conf.int = )`).
 
-We compared the three in simulations in which the true mean is known
-(`validation/08_orm_interval_methods.R` in the package sources). The
-default covered the true curves as often as it should (95%) or slightly more;
-the delta method and the bootstrap covered them slightly less often, so they
-are not more accurate here, only slower or more complicated. The bootstrap
-is still useful as a check:
+Is the bootstrap needed? We compared the three in simulations in which the
+true mean is known (`validation/08_orm_interval_methods.R` and
+`validation/10_orm_intervals_complex_model.R` in the package sources), with
+300 simulated data sets each and 95% simultaneous bands over three curves:
+
+| Setting | Default | Bootstrap (1000 refits) | Delta |
+|:--|:--|:--|:--|
+| 10-level outcome, n = 200, small model | 94.3% | 92.7% | 87.7% |
+| continuous outcome, n = 300, small model | 95.0% | 94.3% | 93.0% |
+| 10-level outcome, n = 300, spline interaction, 24 coefficients | 93.7% | 93.3% | 63.3% |
+
+The default covers the true curves as often as it should. The bootstrap does
+so too, but in the model as complex as ours its bands were 30% wider, so it
+is not needed; it remains useful as a check. The delta method is too narrow
+and is not recommended.
 
 ```{r bootstrap}
 set.seed(2)

@@ -35,12 +35,15 @@
 #' intervals are computed for rms's linear predictor (reference intercept
 #' plus covariate effects) and transformed with `Hmisc::Mean()`, as
 #' `rms::Predict(fit, fun = Mean(fit))` does. They ignore the uncertainty of
-#' the other intercepts, but in simulations (`validation/08_orm_interval_methods.R`)
-#' they had the most accurate coverage. `ci_method = "delta"` instead uses
-#' the delta method on the mean scale with the covariance of *all*
-#' coefficients, as `rms::Mean(fit)(X = , conf.int = )` does; its symmetric
-#' intervals covered slightly less often than stated. Bootstrap intervals
-#' for orm are also computed on the mean scale. Mean-scale intervals are
+#' the other intercepts, yet in simulations (`validation/08_orm_interval_methods.R`
+#' and `validation/10_orm_intervals_complex_model.R`) they had the stated
+#' coverage (94-95% for 95% bands), also in a model with a spline interaction
+#' and about 24 coefficients. Bootstrap intervals for the orm mean are
+#' computed on the mean scale; they had similar coverage but were up to 30%
+#' wider. `ci_method = "delta"` uses the delta method on the mean scale with
+#' the covariance of *all* coefficients, as `rms::Mean(fit)(X = , conf.int = )`
+#' does; it is available for comparison but **not recommended**: its bands
+#' covered as little as 63% in the complex model. Mean-scale intervals are
 #' clipped to the observed outcome range.
 #'
 #' Cox models: the estimate is the hazard ratio (or log hazard ratio with
