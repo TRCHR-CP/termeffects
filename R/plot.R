@@ -154,7 +154,8 @@ term_heatmap <- function(x, contours = TRUE, cuts = NULL, show_data = FALSE,
     d$.curve <- if (length(layers) > 1) paste0("Layer ", i, ": ", label) else label
     d
   })
-  paths <- do.call(rbind, lapply(paths, function(d) d[c(vx, vy, ".curve", setdiff(names(d), c(vx, vy, ".curve")))]))
+  # layers can have different variables, so keep only what is drawn
+  paths <- do.call(rbind, lapply(paths, function(d) d[c(vx, vy, ".curve")]))
   paths$.curve <- factor(paths$.curve, levels = unique(paths$.curve))
   arrow <- if (show_direction) {
     ggplot2::arrow(length = ggplot2::unit(0.12, "inches"), type = "closed")
@@ -351,7 +352,7 @@ plot.term_test <- function(x, type = c("auto", "curves", "difference"), ...) {
     if (length(focal) >= 3) {
       p <- p + ggplot2::facet_wrap(focal[3], labeller = ggplot2::label_both)
     }
-    return(p + ggplot2::labs(subtitle = subtitle) + ggplot2::theme_minimal())
+    return(p + ggplot2::labs(title = subtitle, subtitle = .held_subtitle(x)) + ggplot2::theme_minimal())
   }
   d$estimate <- d$difference
   d$band.low <- d$band.low - d$reference

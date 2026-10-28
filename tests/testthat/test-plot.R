@@ -45,3 +45,13 @@ test_that("outcome labels describe the scale", {
   expect_equal(attr(term_predictions(g, "wt", n = 3, scale = "link"), "outcome_label"), "Linear predictor")
   expect_equal(attr(term_predictions(fit, "hp", n = 3), "outcome_label"), "Predicted mpg")
 })
+
+test_that("layers with different variables can be drawn together", {
+  surface <- term_predictions(fit, c("hp", "wt"), n = 15)
+  one <- term_layer(surface, list(hp = function(w) 100 + 50 * w, wt = function(w) 3 - w),
+                    terms = "w", values = list(w = seq(0, 1, by = 0.1)))
+  family <- term_layer(surface, list(hp = function(w, s) s + 50 * w, wt = function(w) 3 - w),
+                       terms = c("w", "s"), values = list(w = seq(0, 1, by = 0.1), s = c(100, 150)))
+  p <- term_heatmap(surface, layers = list(one, family))
+  expect_length(unique(ggplot2::layer_data(p, length(p$layers))$group), 3)
+})

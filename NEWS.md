@@ -21,5 +21,6 @@
   function with the simultaneous band (now with a p-value); `vcov()` of
   predictions.
 * New data set `heartfailure`.
-* Vignettes: "Seeing non-linear interactions: heatmaps and cuts" (how-to), and
+* Vignettes: "Seeing non-linear interactions: heatmaps and cuts" (how-to),
+  "A tour of every feature" (every function once, with what to check), and
   the student's four vignettes ported to termeffects.

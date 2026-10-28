@@ -24,7 +24,7 @@ test_that("term_figure bundles plots, covariates and a caption", {
 test_that("captions describe additive surfaces and orm models", {
   fit <- lm(mpg ~ hp + wt, data = mtcars)
   fig <- term_figure(term_predictions(fit, c("hp", "wt"), n = 5))
-  expect_match(fig$caption, "hp (linear) and wt (linear)", fixed = TRUE)
+  expect_match(fig$caption, "In the model, hp enters linearly and wt linearly.", fixed = TRUE)
   expect_match(fig$caption, "no interaction")
   expect_match(fig$caption, "There are no other covariates")
 

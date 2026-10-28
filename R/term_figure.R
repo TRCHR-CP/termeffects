@@ -136,8 +136,8 @@ print.term_figure <- function(x, ...) {
   vars <- lapply(labels, function(l) all.vars(str2lang(l)))
   main <- vapply(focal, function(v) {
     own <- labels[vapply(vars, function(u) identical(u, v), logical(1))]
-    if (!length(own)) return(paste(v, "(only in interactions)"))
-    if (identical(own, v)) paste(v, "(linear)") else paste0(v, " as ", toString(own))
+    if (!length(own)) return(paste(v, "only through interactions"))
+    if (identical(own, v)) paste(v, "linearly") else paste0(v, " as ", toString(own))
   }, character(1))
   both <- labels[vapply(vars, function(u) all(focal %in% u), logical(1))]
   interaction <- if (length(both)) {
@@ -145,7 +145,9 @@ print.term_figure <- function(x, ...) {
   } else {
     " The model has no interaction between them, so the surface is additive."
   }
-  paste0("The focal variables enter the model as ", paste(main, collapse = " and "), ".", interaction)
+  # "In the model, creatinine enters as rcs(creatinine, 4) and sodium as ..."
+  main[1] <- sub("^(\\S+) ", "\\1 enters ", main[1])
+  paste0("In the model, ", paste(main, collapse = " and "), ".", interaction)
 }
 
 

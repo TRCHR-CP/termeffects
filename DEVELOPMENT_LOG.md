@@ -5,6 +5,33 @@ user-facing summary; this log also covers decisions, validation and tooling.
 
 ---
 
+## 2026-10-27 — Feature tour vignette for testing
+
+New vignette `vignettes/feature_tour.Rmd` ("A tour of every feature"): uses
+every exported function once on the `heartfailure` data. Each section says what
+the reader should see ("Check:"), so it can serve as a manual test. It also
+lists the automatic checks (`devtools::test()`, `check()`, `build_vignettes()`)
+and ends with calls that must fail with a clear message. Features from
+p-ggeffects are marked.
+
+Problems found by writing it, now fixed:
+
+* `term_heatmap(layers = list(a, b))` failed when the layers had different
+  variables (e.g. a single path and a family of paths): rows were combined
+  with all their columns. Only the drawn columns are combined now; test added.
+* The `term_figure()` caption read "enter the model as creatinine as
+  rcs(creatinine, 4)". Now: "In the model, creatinine enters as
+  rcs(creatinine, 4) and sodium as rcs(sodium, 4)."
+* The difference heatmap of `plot(test)` did not say which values the other
+  covariates were held at. It now has the test result as title and the held
+  values as subtitle, like the curves version.
+
+Noted, not changed: a layer parameterization whose input is named like a held
+covariate (e.g. `function(age)` while age is held at 60) uses the held value.
+This is consistent with how held values work elsewhere.
+
+---
+
 ## 2026-10-27 — The student's work ported; orm intervals checked; figures
 
 Git history on branch `port-student-work` (newest last):

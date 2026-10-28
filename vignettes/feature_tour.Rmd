@@ -1,0 +1,374 @@
+---
+title: "A tour of every feature"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+vignette: >
+  %\VignetteIndexEntry{A tour of every feature}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7, fig.height = 4.5,
+                      message = FALSE,
+                      eval = requireNamespace("rms", quietly = TRUE))
+```
+
+This vignette uses every function in termeffects once, on the `heartfailure`
+data. It is meant for trying the package out: open `vignettes/feature_tour.Rmd`
+in RStudio and run it chunk by chunk. Each section ends with **Check:**, saying
+what you should see. Features that came from Lukas Bolsinger's p-ggeffects are
+marked *(from p-ggeffects)*.
+
+The other vignettes explain the ideas; this one only shows that everything works.
+
+## 0. Before you start: the automatic checks
+
+These run from the package folder in RStudio:
+
+```{r, eval = FALSE}
+devtools::load_all()   # load the current code without installing
+devtools::test()       # about 160 automatic tests; all should pass
+devtools::check()      # full R CMD check: 0 errors expected
+devtools::build_vignettes()   # renders all vignettes, including this one
+```
+
+Then install the package (`devtools::install()`) and run this vignette.
+
+## 1. One model to start with
+
+A linear model of ejection fraction (LVEF) with a spline interaction between
+creatinine and sodium, adjusted for age, sex and diabetes. It is quick to fit,
+so it is used for most of the tour; section 7 repeats the key steps for other
+model types.
+
+```{r model}
+library(termeffects)
+library(rms)
+library(splines)
+
+hf <- heartfailure
+fit <- lm(ejection_fraction ~ ns(creatinine, 3) * ns(sodium, 3) + ns(age, 3) + sex + diabetes,
+          data = hf)
+```
+
+## 2. The prediction grid: `term_grid()`
+
+```{r grid}
+grid <- term_grid(fit, c("creatinine", "sodium"), n = 5)
+head(grid)
+attr(grid, "held")
+attr(grid, "held_rule")
+```
+
+**Check:** creatinine and sodium vary; age is held at its median (60), sex and
+diabetes at their most common value (Male, No).
+
+## 3. Predictions: `term_predictions()`
+
+```{r predictions}
+set.seed(1)
+cr <- seq(0.5, 4, length.out = 40)     # where almost all patients are
+na <- seq(125, 148, length.out = 40)
+surface <- term_predictions(fit, c("creatinine", "sodium"), values = list(creatinine = cr, sodium = na))
+surface
+head(as.data.frame(surface))
+```
+
+**Check:** the header names the held values and gives two critical values,
+1.97 for pointwise intervals and a larger one for the simultaneous band. The
+columns are `estimate`, `std.error`, `conf.low`/`conf.high` (pointwise) and
+`band.low`/`band.high` (simultaneous).
+
+The covariance matrix of the predictions *(from p-ggeffects)*:
+
+```{r vcov}
+V <- vcov(surface)
+dim(V)
+all.equal(sqrt(diag(V)), surface$std.error)
+```
+
+**Check:** a 1600 × 1600 matrix whose diagonal gives the standard errors (`TRUE`).
+
+## 4. Heatmaps: `term_heatmap()`
+
+```{r heatmap-basic}
+term_heatmap(surface)
+term_heatmap(surface, contours = FALSE)
+```
+
+Data points, the region with data (*from p-ggeffects*), and marks for cuts:
+
+```{r heatmap-support}
+term_heatmap(surface, show_data = TRUE, show_support = TRUE)
+term_heatmap(surface, show_support = TRUE, support_prob = 0.9)
+term_heatmap(surface, cuts = list(sodium = c(130, 137, 142)))
+```
+
+**Check:** the faded area grows when `support_prob` drops from 0.975 to 0.9.
+The cuts are dashed horizontal lines.
+
+Where is the surface estimated precisely? *(from p-ggeffects)*
+
+```{r heatmap-uncertainty}
+term_heatmap(surface, fill = "band_width")
+term_heatmap(surface, fill = "std.error")
+```
+
+**Check:** both are largest where there are few patients (high creatinine,
+and the edges of the sodium range).
+
+`plot()` picks the right plot for the object:
+
+```{r plot-auto}
+plot(surface)
+```
+
+## 5. Cuts: `term_curves()`
+
+```{r curves}
+cuts <- term_predictions(fit, c("creatinine", "sodium"),
+                         values = list(creatinine = cr, sodium = c(130, 137, 142)))
+term_curves(cuts)                        # simultaneous band (default)
+term_curves(cuts, band = "pointwise")
+term_curves(cuts, band = "both")
+term_curves(cuts, band = "none")
+plot(cuts)
+```
+
+**Check:** with `band = "both"` the simultaneous band is always the wider one.
+
+### Other held values: `at`
+
+```{r at}
+women <- term_predictions(fit, c("creatinine", "sodium"),
+                          values = list(creatinine = cr, sodium = c(130, 137, 142)),
+                          at = list(sex = "Female", diabetes = "Yes", age = 75))
+women
+term_curves(women)
+```
+
+**Check:** the header now says Female, Yes and 75, marked as set by you.
+
+### Panels and the scope of the band *(from p-ggeffects)*
+
+A third focal variable makes panels. `ci_scope` says over what the band is
+simultaneous: everything (`"global"`), each panel (`"faceted"`) or each curve
+(`"curve"`).
+
+```{r scope}
+by_sex <- lapply(c(global = "global", faceted = "faceted", curve = "curve"), function(scope)
+  term_predictions(fit, c("creatinine", "sodium", "sex"),
+                   values = list(creatinine = cr, sodium = c(130, 137, 142)),
+                   ci_scope = scope))
+lapply(by_sex, attr, "critical_value")
+term_curves(by_sex$global)
+```
+
+**Check:** one critical value for `"global"`, one per sex for `"faceted"`,
+one per curve for `"curve"`, and they get smaller in that order.
+
+### The link scale
+
+```{r link}
+glm_fit <- glm(death_event ~ ns(creatinine, 3) * ns(sodium, 3) + age + sex,
+               data = hf, family = binomial)
+risk <- term_predictions(glm_fit, c("creatinine", "sodium"),
+                         values = list(creatinine = cr, sodium = c(130, 137, 142)))
+term_curves(risk)
+term_curves(term_predictions(glm_fit, c("creatinine", "sodium"), scale = "link",
+                             values = list(creatinine = cr, sodium = c(130, 137, 142))))
+```
+
+**Check:** the first plot shows probabilities whose bands stay between 0 and 1;
+the second shows log-odds.
+
+## 6. Interval methods
+
+The bootstrap *(from p-ggeffects)*: the model is refitted on resampled data.
+
+```{r bootstrap}
+set.seed(2)
+cuts_boot <- term_predictions(fit, c("creatinine", "sodium"),
+                              values = list(creatinine = cr, sodium = c(130, 137, 142)),
+                              ci_method = "bootstrap", nboot = 200)
+attr(cuts_boot, "critical_value")
+term_curves(cuts_boot)
+```
+
+**Check:** the bands look similar to the analytic ones in section 5.
+
+For `orm` models there are three methods (see the how-to vignette for the
+simulation comparing them):
+
+```{r orm}
+hf$platelets <- hf$platelets / 1000
+ofit <- orm(ejection_fraction ~ rcs(creatinine, 4) * rcs(sodium, 4) + rcs(age, 4) +
+              sex + diabetes + anaemia + hblood_pressure + smoking +
+              rcs(platelets, 3) + rcs(log(cpk_enzyme), 3),
+            data = hf, x = TRUE, y = TRUE)
+orm_cuts <- lapply(c(analytic = "analytic", delta = "delta", bootstrap = "bootstrap"), function(m) {
+  set.seed(3)
+  term_predictions(ofit, c("creatinine", "sodium"),
+                   values = list(creatinine = seq(0.5, 4, length.out = 25), sodium = c(130, 137, 142)),
+                   ci_method = m, nboot = 200)
+})
+sapply(orm_cuts, function(p) mean(p$band.high - p$band.low))   # average band width
+term_curves(orm_cuts$analytic)
+```
+
+**Check:** the bootstrap bands are clearly wider than the other two. (Here the
+delta bands are about as wide as the default ones; in the simulations they were
+too narrow, which is why they are not the default.)
+
+## 7. Other model types
+
+```{r other-models}
+library(survival)
+hf$died <- as.numeric(hf$death_event == "Yes")
+cox <- coxph(Surv(time, died) ~ ns(creatinine, 3) * ns(sodium, 3) + age + sex, data = hf)
+term_curves(term_predictions(cox, c("creatinine", "sodium"),
+                             values = list(creatinine = cr, sodium = c(130, 137, 142))))
+```
+
+```{r gam, eval = requireNamespace("mgcv", quietly = TRUE)}
+gam_fit <- mgcv::gam(ejection_fraction ~ te(creatinine, sodium) + s(age) + sex, data = hf)
+term_heatmap(term_predictions(gam_fit, c("creatinine", "sodium"), values = list(creatinine = cr, sodium = na)))
+```
+
+**Check:** the Cox plot shows hazard ratios against an average patient. Mixed
+models (`lme4`) work the same way; the `heartfailure` data have no clusters, so
+they are covered by the automatic tests only.
+
+## 8. A figure with its caption: `term_figure()`
+
+```{r figure}
+ofit_surface <- term_predictions(ofit, c("creatinine", "sodium"),
+                                 values = list(creatinine = cr, sodium = na))
+fig <- term_figure(ofit_surface, cuts = list(sodium = c(130, 137, 142)), show_data = TRUE)
+fig
+fig$heatmap
+fig$curves
+fig$uncertainty
+fig$covariates
+fig$model
+```
+
+```{r figure-caption, results = "asis"}
+cat(fig$caption)
+```
+
+**Check:** with eight held covariates, the heatmap subtitle points to the
+caption instead of listing them, and `fig$covariates` lists all eight with how
+each value was chosen.
+
+## 9. Parameterized models *(from p-ggeffects)*
+
+A parameterized model gives the fitted model new inputs without refitting it.
+Here creatinine is described by its logarithm:
+
+```{r parameterize}
+pfit <- parameterize(fit, list(creatinine = function(log_cr) exp(log_cr)))
+pfit
+is.parameterized_model(pfit)
+parameter_variables(pfit)
+parameterizations(pfit)
+class(original_model(pfit))
+```
+
+Parameterizing again composes the two steps: here, log creatinine is given as
+the number of doublings from 1 mg/dL.
+
+```{r compose}
+pfit2 <- parameterize(pfit, list(log_cr = function(doublings) doublings * log(2)))
+print(pfit2, show_history = TRUE)
+nd <- data.frame(doublings = c(-1, 0, 1, 2), sodium = 137, age = 60,
+                 sex = "Male", diabetes = "No")
+parameterize_data(pfit2, nd)
+predict(pfit2, nd)
+predict(fit, transform(nd, creatinine = 2^doublings))
+```
+
+**Check:** `parameterize_data()` adds `creatinine` = 0.5, 1, 2, 4, and the two
+`predict()` calls give the same numbers.
+
+Predictions and plots work as for an ordinary model. Without `values`, the
+range of a new variable is found by a search: a range centred at 0 within which
+creatinine stays inside its observed range.
+
+```{r parameterized-predictions}
+p_surface <- term_predictions(pfit2, c("doublings", "sodium"))
+range(p_surface$doublings)
+term_heatmap(p_surface, show_support = TRUE)
+term_curves(term_predictions(pfit2, c("doublings", "sodium"),
+                             values = list(doublings = seq(-1, 2, length.out = 30),
+                                           sodium = c(130, 137, 142))))
+```
+
+**Check:** `doublings` runs from about −0.9 to 0.9, i.e. creatinine from 0.54
+to 1.86 mg/dL. Usually it is clearer to give the range with `values`, as in the
+second plot.
+
+## 10. Curves through a heatmap: `term_layer()` *(from p-ggeffects)*
+
+A layer follows paths through the heatmap and predicts along them. One path,
+a patient whose creatinine rises while sodium falls:
+
+```{r layer-one}
+worsening <- term_layer(surface,
+                        parameterization = list(creatinine = function(w) 1 + w,
+                                                sodium = function(w) 140 - 5 * w),
+                        terms = "w", values = list(w = seq(0, 1.5, by = 0.05)))
+head(worsening)
+term_heatmap(surface, layers = worsening)
+term_curves(worsening, show_direction = TRUE)
+plot(worsening)
+```
+
+A family of paths, starting from different creatinine values:
+
+```{r layer-family}
+paths <- term_layer(surface,
+                    parameterization = list(creatinine = function(w, start) start + w,
+                                            sodium = function(w) 140 - 5 * w),
+                    terms = c("w", "start"),
+                    values = list(w = seq(0, 1.5, by = 0.05), start = c(0.8, 1.2, 1.6)))
+term_heatmap(surface, layers = paths)
+term_heatmap(surface, layers = list(worsening, paths), show_direction = FALSE)
+term_curves(paths)
+```
+
+**Check:** the paths run from upper left to lower right, with arrows in the
+first plot and without in the last; `term_curves()` shows LVEF along each path.
+
+## 11. Testing a reference curve: `test_simultaneous_predictions()` *(from p-ggeffects)*
+
+Is a flat LVEF of 38% compatible with the curves, i.e. does it lie inside all
+the simultaneous bands?
+
+```{r test}
+flat <- test_simultaneous_predictions(cuts, f = function(creatinine, sodium) 38 + 0 * creatinine)
+flat
+attr(flat, "all_inside")
+attr(flat, "p_value")
+plot(flat)
+plot(flat, type = "difference")
+plot(test_simultaneous_predictions(surface, f = function(creatinine, sodium) 38 + 0 * creatinine))
+```
+
+**Check:** the p-value is below 0.05 exactly when `all_inside` is `FALSE`. The
+difference plot of a surface is a heatmap in blue and red, white where the
+prediction equals the reference.
+
+## 12. Errors you should get
+
+These calls are wrong on purpose; each should stop with a clear message.
+
+```{r errors, error = TRUE}
+term_heatmap(term_predictions(fit, "creatinine"))                        # one focal variable
+term_predictions(fit, c("creatinine", "sodium"), ci_method = "delta")      # delta is for orm
+parameterize(fit, list(weight = function(t) t))                          # not in the model
+term_layer(surface, list(age = function(t) t))                           # age is not on the heatmap
+test_simultaneous_predictions(cuts, f = function(cyl) cyl)               # unknown variable
+```
