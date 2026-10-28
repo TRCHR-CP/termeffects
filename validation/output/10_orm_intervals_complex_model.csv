@@ -1,0 +1,4 @@
+"scenario","method","simultaneous_coverage","pointwise_coverage_at_centre","mean_band_width","runs"
+"complex_lvef_like","lp_wald",0.936666666666667,0.94,24.6690477610187,300
+"complex_lvef_like","delta",0.633333333333333,0.923333333333333,22.6024698390393,300
+"complex_lvef_like","bootstrap",0.933333333333333,0.96,32.0936388121623,300

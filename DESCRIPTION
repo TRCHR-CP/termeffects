@@ -12,13 +12,25 @@ Description: Computes adjusted predictions with simultaneous confidence
     visualizes them as term plots and heatmaps.
 License: MIT + file LICENSE
 Encoding: UTF-8
+LazyData: true
+Depends:
+    R (>= 4.1.0)
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
-Suggests: 
-    ggeffects,
+Suggests:
+    Hmisc,
+    knitr,
+    lme4,
+    mgcv,
+    mvtnorm,
+    rmarkdown,
+    rms,
+    splines,
+    survival,
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
-Imports: 
-    ggplot2,
-    insight,
-    stats
+Imports:
+    ggplot2 (>= 3.5.0),
+    stats,
+    utils
+VignetteBuilder: knitr

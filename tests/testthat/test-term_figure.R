@@ -1,0 +1,36 @@
+test_that("term_figure bundles plots, covariates and a caption", {
+  d <- transform(mtcars, am = factor(am))
+  fit <- lm(mpg ~ splines::ns(hp, 3) * splines::ns(wt, 3) + qsec + am + gear + carb + drat, data = d)
+  surface <- term_predictions(fit, c("hp", "wt"), n = 15)
+  fig <- term_figure(surface, cuts = list(wt = c(2.5, 3.5)), show_data = TRUE)
+
+  expect_s3_class(fig, "term_figure")
+  expect_s3_class(fig$heatmap, "ggplot")
+  expect_s3_class(fig$curves, "ggplot")
+  expect_s3_class(fig$uncertainty, "ggplot")
+  expect_equal(fig$covariates$covariate, c("qsec", "am", "gear", "carb", "drat"))
+  expect_equal(fig$covariates$chosen_as[fig$covariates$covariate == "am"], "most common")
+  expect_equal(fig$covariates$value[fig$covariates$covariate == "am"], "0")
+  expect_match(fig$caption, "Predicted mpg over hp and wt")
+  expect_match(fig$caption, "interact in the model")
+  expect_match(fig$caption, "qsec = 17.7 (median)", fixed = TRUE)
+  expect_match(fig$caption, "cuts through the surface at wt = 2.5, 3.5")
+  expect_match(fig$model, "^linear regression, n = 32")
+  # many held covariates: the plot points to the caption instead of listing them
+  expect_match(fig$heatmap$labels$subtitle, "5 other covariates")
+  expect_output(print(fig), "Predicted mpg")
+})
+
+test_that("captions describe additive surfaces and orm models", {
+  fit <- lm(mpg ~ hp + wt, data = mtcars)
+  fig <- term_figure(term_predictions(fit, c("hp", "wt"), n = 5))
+  expect_match(fig$caption, "In the model, hp enters linearly and wt linearly.", fixed = TRUE)
+  expect_match(fig$caption, "no interaction")
+  expect_match(fig$caption, "There are no other covariates")
+
+  skip_if_not_installed("rms")
+  o <- rms::orm(ejection_fraction ~ rms::rcs(creatinine, 4) + age, data = heartfailure)
+  fig <- term_figure(term_predictions(o, c("creatinine", "age"), n = 5))
+  expect_match(fig$model, "proportional odds model (rms::orm), n = 299", fixed = TRUE)
+  expect_match(fig$caption, "Mean ejection_fraction")
+})

@@ -1,0 +1,8 @@
+"file","test","n","failed","skipped","error","warnings"
+"test-add_data_missings.R","ggpredict, raw data available",2,0,FALSE,FALSE,0
+"test-as_data_frame.R","ggpredict, as.data.frame",6,6,FALSE,FALSE,0
+"test-avg_predictions.R","ggpredict, condition",11,1,FALSE,FALSE,0
+"test-avg_predictions.R","ggaverage, glm",7,0,FALSE,FALSE,0
+"test-backtransform_response.R","ggpredict-log-/srqtresponse",0,0,FALSE,TRUE,0
+"test-backtransform_response.R","ggpredict-sqrt-response",0,0,FALSE,TRUE,0
+"test-backtransform_response.R","ggpredict-backtransformed raw data",5,2,FALSE,FALSE,0

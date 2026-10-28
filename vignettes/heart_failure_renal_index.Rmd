@@ -1,0 +1,247 @@
+---
+title: "termeffects: nonlinear predictions and parameterizations"
+subtitle: "Heart-failure data — prediction, parameterization, and simultaneous inference"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+    toc_depth: 2
+vignette: >
+  %\VignetteIndexEntry{termeffects: nonlinear predictions and parameterizations}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+# Introduction
+
+This example uses the `heartfailure` data (distributed with termeffects, originally from `dlookr`) to demonstrate how **termeffects separates model fitting, prediction, parameterization, and presentation**. The response is left ventricular ejection fraction (LVEF); the analysis is illustrative and associative, not causal.
+
+| Feature | Demonstration |
+|:--|:--|
+| Nonlinear interactions | Natural spline interactions in a single fitted model |
+| `term_predictions()` | Adjusted prediction surfaces on original predictor coordinates |
+| `term_heatmap()` | Visualize a two-dimensional response surface |
+| `parameterize()` | Predict using a derived renal-function coordinate without refitting |
+| `term_layer()` | Evaluate a prediction surface along parameterized curves |
+| Simultaneous inference | Compare pointwise and simultaneous bands; test against a specified function |
+
+**Plotting rule:** No more than two continuous focal coordinates are shown at once. Other variables are held at the reference profile chosen by `term_predictions()` (median or most common value), or fixed explicitly with `at`.
+
+# Part I — Fit the model
+
+The response is modeled using ordinary least squares. Natural cubic splines with three degrees of freedom allow nonlinear main effects; their interactions allow the association with one predictor to vary across another. Two interactions are included to provide two distinct prediction surfaces. Sex and diabetes enter as additive adjustment terms. No prediction grid is specified during fitting.
+
+```{r setup, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(fig.width = 8, fig.height = 5,
+                      collapse = TRUE, comment = "#>")
+
+library(termeffects)
+library(ggplot2)
+library(splines)
+```
+
+```{r data-and-model}
+data("heartfailure", package = "termeffects")
+raw <- as.data.frame(heartfailure)
+
+dat <- raw[c("ejection_fraction", "creatinine", "sodium",
+             "age", "sex", "diabetes")]
+names(dat) <- c("ejection_fraction", "serum_creatinine",
+                "serum_sodium", "age", "sex", "diabetes")
+dat <- na.omit(dat)
+dat$sex <- as.integer(dat$sex == "Male")
+dat$diabetes <- as.integer(dat$diabetes == "Yes")
+
+model <- lm(
+  ejection_fraction ~
+    ns(serum_creatinine, df = 3) * ns(serum_sodium, df = 3) +
+    ns(serum_creatinine, df = 3) * ns(age, df = 3) +
+    sex + diabetes,
+  data = dat
+)
+summary(model)
+```
+
+# Part II — Specify predictions
+
+Here we choose the prediction domains, **without refitting** the regression.
+
+## Feature 1 — Original-coordinate prediction surfaces
+
+`term_predictions()` evaluates the fitted model on a grid of focal predictors and returns adjusted predictions with pointwise confidence intervals and simultaneous confidence bands. The `terms` argument specifies the displayed coordinates. Predictors omitted from `terms` are held at their median (numeric) or most common value (categorical), reducing the original multivariable model to a two-dimensional surface. The intervals use the uncertainty in the fitted regression coefficients, which is also used in the simultaneous-inference examples.
+
+Creatinine–sodium and age–creatinine grids are generated separately to examine the two fitted interactions. Both use the same regression model.
+
+```{r predict-surfaces}
+pred_creat_sodium <- term_predictions(
+  model,
+  terms = c("serum_creatinine", "serum_sodium")
+)
+
+pred_age_creat <- term_predictions(
+  model,
+  terms = c("age", "serum_creatinine")
+)
+```
+
+## Feature 2 — Parameterize a fitted model
+
+`parameterize()` constructs a prediction model by expressing one or more original predictors as functions of new coordinates. It reuses the coefficients of the fitted model; the transformation affects prediction inputs rather than estimation.
+
+For a simple demonstration, define a **synthetic renal-function index** as a function of creatinine and age. This is *not* clinical eGFR or the CKD-EPI equation; its sole purpose is to illustrate a nonlinear change of prediction coordinates. A validated eGFR equation could replace it in an applied analysis (see the vignette "termeffects feature demonstration", which uses the 2021 CKD-EPI equation).
+
+\[
+R = \frac{100\exp[-0.01(A-60)]}{C}, \qquad
+C = \frac{100\exp[-0.01(A-60)]}{R}.
+\]
+
+```{r parameterize-model}
+renal_index <- function(creatinine, age) {
+  100 * exp(-0.01 * (age - 60)) / creatinine
+}
+
+creatinine_from_index <- function(index, age) {
+  100 * exp(-0.01 * (age - 60)) / index
+}
+
+pmodel <- parameterize(
+  model,
+  parameterizations = list(
+    serum_creatinine = function(index, age) {
+      100 * exp(-0.01 * (age - 60)) / index
+    }
+  )
+)
+
+parameter_variables(pmodel)
+```
+
+The index is inversely related to creatinine and decreases with age at fixed creatinine. The inverse expression is used because prediction requires reconstructing the original creatinine value from the index and age. The original regression coefficients remain unchanged.
+
+```{r predict-parameterized}
+ref_sodium <- median(dat$serum_sodium)
+index_data <- expand.grid(
+  index = seq(40, 120, by = 2),
+  age = c(50, 65, 80),
+  serum_sodium = ref_sodium,
+  sex = 1,
+  diabetes = 0
+)
+index_data$predicted <- predict(pmodel, newdata = index_data)
+head(index_data)
+```
+
+## Feature 3 — Parameterized curves on a surface
+
+A layer (`term_layer()`) represents predictions along a parameterized subset of an existing prediction surface. This permits comparisons along curves defined by relationships among focal variables, without adding another plot axis. Layers are generated by calling `term_layer()` with a `parameterization` on an existing prediction object.
+
+Here, constant-index trajectories are curves in the age–creatinine plane. The parameterized age coordinate `t` is centered at zero, with zero corresponding to the midpoint of the observed age range. The parameterization maps this centered coordinate back to age and creatinine, keeping the overlay in the heatmap domain while following the centered-coordinate convention of parameterized models.
+
+```{r prediction-layer}
+age_center <- mean(range(dat$age))
+age_deviation <- range(dat$age) - age_center
+
+layer_index <- term_layer(
+  pred_age_creat,
+  parameterization = list(
+    age = sprintf("t + %.1f", age_center),
+    serum_creatinine = sprintf(
+      "100 * exp(-0.01 * (t + %.1f - 60)) / r",
+      age_center
+    )
+  ),
+  terms = c("t", "r"),
+  values = list(t = seq(age_deviation[1], age_deviation[2], by = 1),
+                r = c(40, 60, 80, 100))
+)
+head(as.data.frame(layer_index))
+```
+
+# Part III — Plot the predictions
+
+This part consumes the objects defined above; it does **not** fit models.
+
+## Figure 1 — Nonlinear interaction heatmap
+
+`term_heatmap(pred_creat_sodium)` displays the adjusted prediction surface, and `term_heatmap(pred_creat_sodium, fill = "std.error")` a heatmap of prediction standard errors. The uncertainty heatmap shows where predictions are more or less precise across the creatinine–sodium grid; `fill = "band_width"` shows the width of the simultaneous band instead.
+
+```{r plot-surface}
+term_heatmap(pred_creat_sodium)
+term_heatmap(pred_creat_sodium, fill = "std.error")
+```
+
+## Figure 2 — Original-coordinate heatmap with parameterized curves
+
+`term_heatmap(..., layers = )` displays the original age–creatinine heatmap with the parameterized index trajectories overlaid, here also on its standard-error heatmap. These are deterministic transformations, not additional fitted models or confidence regions.
+
+```{r plot-overlays}
+term_heatmap(pred_age_creat, layers = layer_index)
+term_heatmap(pred_age_creat, layers = layer_index, fill = "std.error")
+```
+
+## Figure 3 — Predictions in parameterized coordinates
+
+`term_curves()` displays the parameterized predictions along the selected index trajectories. These predictions use the adjustment profile from the original prediction surface.
+
+```{r plot-parameterized}
+term_curves(layer_index)
+```
+
+## Figure 4 — Pointwise versus simultaneous confidence intervals
+
+Here the focal coordinates are serum creatinine and three fixed ages. The intervals use the uncertainty in the fitted regression coefficients on the prediction grid. Both confidence-interval plots use the same prediction object.
+
+```{r predict-for-scb}
+pred_curves <- term_predictions(
+  model,
+  terms = c("serum_creatinine", "age"),
+  values = list(serum_creatinine = seq(0.8, 3.5, by = 0.1), age = c(50, 65, 80))
+)
+```
+
+`term_curves(..., band = "pointwise")` displays pointwise confidence intervals, which apply separately at each prediction point. `term_curves(..., band = "simultaneous")` displays simultaneous confidence bands calibrated over the generated prediction grid. Simultaneous bands are generally wider because they account for the joint collection of predictions.
+
+```{r plot-pointwise, fig.cap="Pointwise confidence intervals for LVEF predictions by creatinine and age."}
+term_curves(pred_curves, band = "pointwise")
+```
+
+```{r plot-simultaneous, fig.cap="Simultaneous confidence bands over the same creatinine-by-age grid."}
+term_curves(pred_curves, band = "simultaneous")
+```
+
+## Figure 5 — Simultaneous comparison with a reference function
+
+`test_simultaneous_predictions()` compares the predicted function with a supplied reference function `f` over the focal grid. The reference below is a fixed linear surface chosen to illustrate the interface. The test concerns equality to this particular surface, not the composite hypothesis that the association is linear with unspecified coefficients.
+
+```{r test-reference}
+f0 <- function(serum_creatinine, serum_sodium) {
+  40 - 3 * (serum_creatinine - 1) + 0.2 * (serum_sodium - 137)
+}
+
+sim_test <- test_simultaneous_predictions(pred_creat_sodium, f = f0)
+plot(sim_test)
+```
+
+# Part IV — Limitations of plotting, inference, and parameterization
+
+## Plotting and dimensionality
+
+- **Heatmaps show only two continuous focal variables at a time.** They cannot display the full predictor space of a higher-dimensional model. Other predictors are held constant. A `term_layer()` also requires a base surface with two continuous focal variables; its parameterizations map back to those primary variables and use at most two new coordinates. Layers therefore support curves or families of curves on that surface, not arbitrary high-dimensional overlays.
+- **Heatmaps do not show residuals.** Raw-data points (`show_data = TRUE`) and kernel-density shading (`show_support = TRUE`) indicate regions with sparse predictor support, but they do not exclude those regions or prevent extrapolation.
+- **Heatmap uncertainty can be displayed as a standard-error surface or as the width of the simultaneous band** (`fill = "std.error"` or `fill = "band_width"`).
+
+## Simultaneous inference and marginalization
+
+- **Inference applies to the generated grid and its adjustment profile.** Non-focal predictors have already been fixed at selected values. The simultaneous bands and reference-function test therefore concern predictions at those conditional values; they do not establish simultaneous coverage over omitted predictors or their interactions. Changing the adjustment profile can change the function being assessed.
+- **The critical value is estimated using a finite grid.** The grid approximates the supremum over the prediction domain; it is a numerical method for estimating the simultaneous critical value, not a restriction of the intended band to sample or grid points. Coverage is intended to apply between grid points as well, with accuracy depending on how well the generated grid represents the domain.
+- **The scope can be chosen.** `ci_scope = "global"` (default) makes the band simultaneous over the whole grid; `"faceted"` and `"curve"` give separate simultaneous adjustments by facet or by curve.
+- **The reference-function test is not a general shape or linearity test.** It compares predictions with one supplied function. For non-standard models and parameterizations, defining the relevant reference function in the original predictor coordinates may not be straightforward; it must return one numeric value at each evaluation point and use argument names matching variables of the predictions. Standard hypotheses such as linearity also generally require fitting an additional constrained or reference model, with its estimation uncertainty accounted for, rather than simply supplying one fixed function.
+- **Two ways to compute the uncertainty.** By default (`ci_method = "analytic"`) it comes from the coefficients' covariance matrix; `ci_method = "bootstrap"` refits the model on resampled data instead, which is slower.
+
+The inferential scope is determined by both the prediction grid and its adjustment rules. Changing the grid or parameterization does not require refitting the model, but it changes the function and domain represented by the plots and tests. In this demonstration, Figure 4 concerns the creatinine–age surface at the selected adjustment values, while Figure 5 tests a fixed reference function against the creatinine–sodium predictions at their selected adjustment values.
+
+## Parameterization and default prediction domains
+
+- **Parameterization inputs are treated as numeric.** This makes categorical transformations unsuitable and can remove the meaning of factor levels. The implementation does not generally verify that transformed predictors are finite or scientifically plausible.
+- **Unknown parameterization names are an error.** Only names matching model predictors (or variables of an existing parameterization) are accepted, so a typo stops with a message rather than leaving the model unparameterized.
+- **Default parameter-coordinate bounds are heuristic, centered rectangular boxes.** The range-generation code searches symmetric boxes around zero, shrinking them until their sampled and optimized image fits within the observed range of the original predictor, then expanding dimensions individually. This follows the zero-centered parameter-coordinate convention.
+- **The bounding-box heuristic may not suit compact or irregular parameterizations.** For bounded, periodic, many-to-one, or non-rectangular mappings, a single centered rectangle may omit valid regions or include combinations that map outside the original predictor's observed range. Its image bounds are estimated using random samples and local optimization, which can miss extrema. If the search cannot find a suitable box, it warns and returns the last box, so downstream grids can still contain out-of-range or invalid transformed values. Giving the ranges with `values` avoids the search.

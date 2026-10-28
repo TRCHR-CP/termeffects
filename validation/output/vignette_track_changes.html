@@ -1,0 +1,1310 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vignette track changes</title>
+<style>
+  :root { --bg: #ffffff; --ink: #1f2328; --muted: #59636e; --del: #b42318; --del-bg: #fdecea;
+          --ins: #116329; --ins-bg: #e6f4ea; --rule: #d0d7de; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0d1117; --ink: #e6edf3; --muted: #9198a1; --del: #ff7b72; --del-bg: #3d1214;
+            --ins: #56d364; --ins-bg: #12331c; --rule: #30363d; } }
+  body { background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, sans-serif;
+         max-width: 980px; margin: 0 auto; padding: 24px 16px; }
+  h1 { font-size: 1.5rem; } h2 { margin-top: 2.5rem; border-bottom: 1px solid var(--rule); }
+  .meta, .legend { color: var(--muted); }
+  pre { white-space: pre-wrap; word-wrap: break-word; font: 13px/1.55 ui-monospace, monospace; }
+  del { color: var(--del); background: var(--del-bg); text-decoration: line-through; }
+  ins { color: var(--ins); background: var(--ins-bg); text-decoration: underline; }
+</style></head><body>
+<h1>Vignette track changes: p-ggeffects &rarr; termeffects</h1>
+<p class="legend">The student's text (git commit 2de18bc) compared with the current
+termeffects vignettes. <del>Struck through</del>: removed. <ins>Underlined</ins>: added.
+Everything else is unchanged.</p>
+<ul><li><a href="#introduction-Rmd">introduction.Rmd</a> (student: introduction_p_ggeffects.Rmd): 519 words deleted, 413 inserted</li><li><a href="#parameterized_models-Rmd">parameterized_models.Rmd</a> (student: introduction_parameterized_model.Rmd): 474 words deleted, 335 inserted</li><li><a href="#heart_failure_egfr-Rmd">heart_failure_egfr.Rmd</a> (student: p_ggeffects_demonstration.Rmd): 1128 words deleted, 752 inserted</li><li><a href="#heart_failure_renal_index-Rmd">heart_failure_renal_index.Rmd</a> (student: p_ggeffects_heart_failure.Rmd): 600 words deleted, 474 inserted</li></ul>
+<section id="introduction-Rmd"><h2>introduction.Rmd</h2><p class="meta">Student's original: vignettes/introduction_p_ggeffects.Rmd in p-ggeffects</p><pre>---
+title: &quot;<del>p-ggeffects</del><ins>termeffects</ins>: <del>additional features</del><ins>introduction</ins>&quot;
+output: rmarkdown::html_vignette
+vignette: &gt;
+  %\VignetteIndexEntry{<del>p-ggeffects</del><ins>termeffects</ins>: <del>additional features</del><ins>introduction</ins>}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r set-options, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = &quot;#&gt;&quot;,
+  dev = &quot;png&quot;,
+  fig.width = 7,
+  fig.height = 3.5,
+  message = FALSE,
+  warning = FALSE
+)
+options(width = 800)
+
+<del>pkgs &lt;- c(
+  &quot;ggplot2&quot;,
+  &quot;splines&quot;,
+  &quot;gridExtra&quot;,
+  &quot;patchwork&quot;,
+  &quot;see&quot;,
+  &quot;survival&quot;,
+  &quot;datawizard&quot;,
+  &quot;htmltools&quot;,
+  &quot;ggeffects&quot;,
+  &quot;rms&quot;
+)
+
+# if (!all(vapply(pkgs, requireNamespace, quietly = TRUE, FUN.VALUE = logical(1L)))) {
+#   knitr::opts_chunk$set(eval = TRUE)
+# }
+
+</del>knitr::opts_chunk$set(
+  eval = TRUE,
+  collapse = TRUE,
+  include = TRUE,
+  comment = &quot;#&gt;&quot;,
+  dev = &quot;png&quot;,
+  fig.width = 7,
+  fig.height = 3.5,
+  message = FALSE,
+  warning = FALSE,
+  results = &quot;markup&quot;
+)
+
+
+
+
+library(<ins>termeffects)
+library(</ins>rms)
+library(splines)
+<del>```
+
+```{r echo=FALSE, message=FALSE}
+library</del><ins>set.seed</ins>(<del>htmltools)
+# callout_tip &lt;- function(header = NULL, ...) {
+#   div(
+#     class = &quot;callout-tip&quot;,
+#     tags$h1(
+#       tags$img(src = &quot;../man/figures/summary.png&quot;, width = &quot;20&quot;, height = &quot;17&quot;, style = &quot;vertical-align:middle&quot;), # nolint
+#       header
+#     ),
+#     ...
+#   )
+# }
+# includeCSS(&quot;../man/figures/callout.css&quot;</del><ins>1</ins>)
+```
+
+# <del>ggeffects</del><ins>Adjusted predictions</ins>
+
+After fitting a model, it is useful to generate model-based estimates (expected values, or adjusted predictions) of the response variable for different cobinations of predictor values. Such estimates can be used to make inferences about relationships between variables--adjusted precitions tell you: what is the expected outcome for certain values or levels of my predictors? For complex models, visualizations of <del>marginal means and </del>adjusted predictions are often far easier to understand and intuititively demonstrate associations of predictors and outcomes.
+
+## Methods
+
+`<del>ggeffects</del><ins>termeffects</ins>` computes<del> marginal mean and</del> adjusted predictions at <ins>representative values: </ins>the <del>mean</del><ins>predictors of interest vary over a grid</ins>,<ins> and all other predictors are held</ins> at <del>representative</del><ins>their</ins> <del>values</del><ins>median (numeric) or most common value (categorical)</ins>, or <del>averaged</del><ins>at</ins> <del>across</del><ins>values</ins> <del>predictors</del><ins>chosen</ins> <del>from</del><ins>with</ins> <del>statistical models</del><ins>`at`</ins>. The result is returned as a data frame with consistent structure, with a view towards ggplot plotting.
+
+We call predictors of interest (ie. the non-marginalized terms) focal terms.
+
+
+
+# <ins>From </ins>p-ggeffects<ins> to termeffects</ins>
+
+<del>The</del><ins>`termeffects` began as</ins> `p-ggeffects`<ins>,</ins> <del>package is an</del><ins>a</ins> &#x27;generalization&#x27; of the `ggeffects` package with a focus on non-linear interactions, and non-trivial marginalizations.<del> </del>
+Particularly, the deviations from `ggeffects` are focused on the introduction of `parameterized_model` objects, regular grid generation for the purpose of 2d-heatmap<del> </del>
+plotting, and simultaneous inference. <ins>`termeffects` keeps these features but no longer depends on `ggeffects`: it computes the predictions and their joint uncertainty itself.</ins>
+
+
+## Parameterized models
+A `parameterized_model` is a data structure consisting of a tuple of a fitted regression model, a map into the variable space of the model--particularly,
+it is viewed as a continuous parameterization of the continuous predictor variables of the models. Moreover, the `parameterized_model` structure tracks
+various auxiliary data.
+
+We view parameterized models as a &#x27;generalization&#x27; of generalized linear models. Consider the example $y \sim f_\beta(x) + \varepsilon$, where $f_\beta$
+is the function $x \mapsto \beta^T x$. Call the domain of interest of $f_\beta$, $\Omega&#x27;$. For a mapping $\phi: \Omega \to \Omega&#x27;$, by composition, we
+obtain a &#x27;model&#x27; $y \sim f_\beta \circ \phi (z) + \varepsilon$. This is the classical example of a generalized additive model--the &#x27;pullback&#x27; of the model<del> </del>
+$f_\beta$ by the basis functions $\phi$. Notice however, that a data set $(Y, X)$ in $\Omega&#x27;$ does not in general induce an estimate of $\beta$ (viewed<del> </del>
+as the coefficients of $f\circ \phi$). Indeed, the points of $X$ may not lie in $\phi(\Omega)$, and even if so, there may not be a unique preimage.<del> </del>
+
+In this light, rather than as a regression model, we view parameterized models instead as generalizations of marginalization by taking $x_i = c$. Indeed, taking
+$f_\beta: \mathbb R^n \to \mathbb R$ as above, the describe marginalization is equivalent to the parameterization $\phi: \mathbb R^{n-1} \to \mathbb R^n$<del> </del>
+given by $\phi(x_1, \ldots, x_{n-1}) = (x_1, \ldots, x_{i-1}, c, x_i, \ldots, x_{n-1})$. Following the philosophy of the `ggeffects` package, for a more<del> </del>
+complex model $f_\beta$, we may visualize and interpret the effect of a (non-primary) variable of interest by plotting its marginalization at a finite (&gt;1)<del> </del>
+set of values.
+
+### Basic methods
+We demonstrate some of the basic methods of `parameterized_model` objects. Consider some non-linear regression model $y \sim f_\beta(w, h, \ldots) + \varepsilon$ dependent on weight and height mesurements. Consider the parameterization
+$(c, t, \ldots) \mapsto (w = ct^2, h = t, \ldots)$. Fixing $c$ (and the other variables, $\ldots$), we obtain a 1 parameteric family of observations with fixed BMI
+and varying height. Doing similarly with $t$, we parameterize the observations with varying weight/BMI and fixed height.
+
+```{r}
+w &lt;- rnorm(500, mean = 70, sd = 4)
+h &lt;- rnorm(500, mean = 170, sd = 10)
+
+a &lt;- rnorm(500)
+
+y &lt;- a + w/h^2 + h + w + w^2 * h + rnorm(500)
+
+
+# model example
+model &lt;- lm(y ~ splines::ns(w,3) + splines::ns(h, 3) + splines::ns(w,3) %ia% splines::ns(h,4) + a)
+
+# parameterize model
+pmodel1 &lt;- parameterize(model, parameterizations = list(w = \(t,c) c*t^2, h = \(t) t))
+
+# parameterized model attributes
+print(pmodel1, show_history = TRUE)
+
+# underlying model
+original_model(pmodel1)
+
+# model parameterizations
+parameterizations(pmodel1)
+
+# new model variables
+parameter_variables(pmodel1)
+```
+
+The methods are as follows:
+
+* **`parameterize()`** — *Parameterize one or more predictor variables of a fitted model.*
+  Takes a model and a named list of functions, expressions, or character strings defining the parameterizations. These are converted to functions and associated with predictor variables of the original model. When applied to an existing `parameterized_model`, the new parameterizations are composed with the existing ones and recorded in the parameterization history.
+
+* **`parameterized_model()`** — *Construct a `parameterized_model` directly.*
+  This is the low-level constructor underlying `parameterize()`. It takes an original model and a named list of parameterization functions, retains those corresponding to model predictors, determines the variables required by those functions, and stores the resulting parameterizations and their history alongside the original model.
+
+* **`predict()`** — *Generate predictions from a parameterized model.*
+  The `predict.parameterized_model()` method first transforms `newdata` according to the model&#x27;s parameterizations and then delegates prediction to the original model&#x27;s `predict()` method. Consequently, `newdata` is specified in terms of the parameter variables rather than the parameterized predictors.
+
+* **`original_model()`** — *Extract the underlying fitted model.*
+  Returns the original model stored inside a `parameterized_model`. If the supplied object is not a `parameterized_model`, it is returned unchanged.
+
+* **`parameterizations()`** — *Extract the parameterization functions associated with a model.*
+  By default, returns the model&#x27;s current parameterizations. The `level` argument can instead be used to retrieve and compose a specified number of the most recent parameterization steps from the model&#x27;s parameterization history.
+
+* **`parameter_variables()`** — *Return the variables on which the parameterized model depends.*
+  Extracts the unique variables appearing as arguments of the model&#x27;s current parameterization functions. These are the variables that must be supplied when constructing prediction data for the parameterized predictors.
+
+* **`parameterize_data()`** — *Apply a model&#x27;s parameterizations to a data frame.*
+  Evaluates each parameterization using the corresponding parameter variables in `newdata` and adds the resulting parameterized predictors to the data. The optional `level` argument controls how many levels of the parameterization history are applied.
+
+* **`print()`** — *Display a summary of a `parameterized_model`.*
+  The `print.parameterized_model()` method prints the underlying model, its parameter variables, and the current parameterization functions. Setting `show_history = TRUE` additionally displays the sequence of parameterizations previously applied to the model.
+
+* **`is.parameterized_model()`** — *Test whether an object is a `parameterized_model`.*
+  Returns a logical value indicating whether the object inherits from the `&quot;parameterized_model&quot;` class.
+
+
+
+
+## <del>ggeffects methods</del><ins>Predictions</ins> for parameterized models
+
+<del>The methods </del>`<del>ggpredict()`, `ggeffect()`, `ggaverage()`, and `ggemmeans</del><ins>term_predictions</ins>()` <del>underlying the `ggeffects` package were &quot;generalized&quot; and implemented</del><ins>works</ins> for parameterized model objects<ins> as for fitted models</ins>, with some<del> </del>
+additional features<del> and modified syntax. These modifications include</del>:
+
+* <del>Deprecation of weighted mean marginalization
+* Deprecation of adaptive &#x27;grids&#x27; in favour of regular</del><ins>Regular</ins> grids (for heatmap visualization)<ins>; the ranges of new variables are found by a search, or given with `values`</ins>
+* <del>Removal of</del><ins>No</ins> support for offset terms
+* <del>Additional computation</del><ins>Computation</ins> of critical values for &#x27;simultaneous&#x27; confidence bands by <del>parametric</del><ins>simulation</ins> <del>and</del><ins>from the coefficients&#x27; distribution, or by</ins> non-<del>parameteric</del><ins>parametric</ins> bootstrap.
+
+Additionally, implements<del> pairwise testing and</del> simultaneous testing for parameterized models
+
+```{r}
+x &lt;- rnorm(500)
+z &lt;- rnorm(500)
+y &lt;- x + z + rnorm(500)
+
+model &lt;- lm(y ~ x + z)
+pmodel &lt;- parameterize(model, parameterizations = list(x = \(t, s) t^3 + s, z = \(t) t^2))
+
+ggout &lt;- <del>ggpredict</del><ins>term_predictions</ins>(pmodel, terms = c(&quot;t&quot;, &quot;s<ins>&quot;),</ins> <del>[</del><ins>values = list(s = c(</ins>-1, 0, 1<del>]&quot;</del>)<del>, ci_method = &quot;coef&quot;</del>)<del>
+# coefficient = parameteric bootstrap (where available</del>)
+
+ggout
+
+ggout |&gt; as.data.frame() |&gt; head()
+
+
+### prediction testing
+<del>test_predictions(ggout) |&gt; head()
+
+</del># requires function in original variables<del>
+# currently an error where this method doesn&#x27;t load</del>
+test_simultaneous_predictions(ggout, f = \(x, z) x - z) |&gt; as.data.frame() |&gt; head()
+test_simultaneous_predictions(ggout, f = \(x, z) x  +  z) -&gt; test
+
+<del># </del>attr(test, &quot;<del>scb_contains_f</del><ins>all_inside</ins>&quot;)
+test |&gt; as.data.frame() |&gt; head()
+```
+
+Remark that the obtained critical value and respective (hyperbolic) simultaneous confidence interval are simultaneous over only the generated grid.
+In particular, non-focal terms are marginalized to constants.
+
+### Simultaneous confidence bands
+
+#### Definition and Motivation:
+For a regression model of the form $y \sim f_\beta(x) + \varepsilon$, the standard confidence band for predictions, $f_{\hat\beta}(x_0)$ is the set:
+$$
+  C_{\beta}(x_0) = [\hat f_\beta(x_0) - t_{1-\alpha/2, n-p} SE(\hat f_\beta)(x_0), \hat f_\beta(x_0) + t_{1-\alpha/2, n-p} SE(\hat f_\beta)(x_0)]
+$$
+
+The set-valued function $C_\beta: \Omega \to 2^\mathbb{R}$ is the pointwise confidence interval. In particular, one only draws pointwise inferences about $f_\beta$, effectively,
+by means of hypothesis tests of the for $H_0: f_\beta(x) = f_0$, which we reject iff $f_\beta(x) \not\in C_\beta(x)$. One may naively attempt to extend this pointwise test
+to a global test by means of multiple joint hypothesis tests, $H_0$ &amp; $H_1$ &amp; $\cdots$ &amp; $H_n$--corrected with multiple hypothesis corrections. In the case where we<del> </del>
+correct uniformly accros the domain of interest, $\Omega$, we obtain the standard hyperbolic simultaneous confidence band: the set-valued function<del> </del>
+$C_\beta: \Omega \to 2^{\mathbb R}$ given by
+
+$$
+  C_\beta(x_0) = [\hat f_\beta(x_0) - c_\alpha SE(\hat f_\beta)(x_0), \hat f_\beta(x_0) + c_\alpha SE(\hat f_\beta)(x_0)]
+$$
+where $c_\alpha$ is chosen such that is the 95-percent quantile of $\sup_{x\in \Omega}\frac{\lVert f_\beta(x) - \hat f_\beta(x)\rVert}{SE \hat f_\beta(x)}$.
+By construction, particulary, the supremum, we observe that this confidence band &quot;considers&quot; the covariance structure of the regression model.
+
+
+Observe that there is not an elementary closed form for the distribution, in general. Hence, we compute it via simulation or bootstrap based methods. For nice models
+(ie. generlized linear models) we can sample from the distribution of the regression coefficients, for less nice models, we must refit several models, then estimate. In particular,<del> </del>
+in <del>p-ggeffects</del><ins>termeffects</ins>, we implement two methods (in addition to the pointwise confidence band)<ins>. For generalized linear models the band is computed on the scale of the linear predictor and then transformed, so it respects the range of the outcome (e.g. probabilities stay within 0 and 1).</ins>
+
+```{r}
+
+x &lt;- rnorm(500)
+z &lt;- rnorm(500)
+y &lt;- rnorm(500) + x^2 - 0.5 * z
+
+model &lt;- lm(y ~ x + I(x^2) + I(x * z) + z)
+
+<del>out1</del><ins>out2</ins> &lt;- <del>ggpredict</del><ins>term_predictions</ins>(model, terms = c(&quot;x&quot;, &quot;z<ins>&quot;),</ins> <del>[</del><ins>values = list(z = c(</ins>-1, 0, 1<del>]&quot;</del>)<del>, ci_level = 0.95, ci_method = &quot;pointwise&quot;)
+out2 &lt;- ggpredict(model, terms = c(&quot;x&quot;, &quot;z [-1, 0, 1]&quot;</del>), ci_level = 0.95, ci_method = &quot;bootstrap&quot;<ins>, nboot = 500</ins>)
+out3 &lt;- <del>ggpredict</del><ins>term_predictions</ins>(model, terms = c(&quot;x&quot;, &quot;z<ins>&quot;),</ins> <del>[</del><ins>values = list(z = c(</ins>-1, 0, 1<del>]&quot;</del><ins>)</ins>), ci_level = 0.95, ci_method = &quot;<del>coefficient</del><ins>analytic</ins>&quot;)
+
+
+head(out3)
+
+<del>plot</del><ins>term_curves</ins>(out3, <del>use_scb</del><ins>band</ins> = <del>FALSE</del><ins>&quot;pointwise&quot;</ins>)
+<del>plot</del><ins>term_curves</ins>(out3, <del>use_scb</del><ins>band</ins> = <del>TRUE</del><ins>&quot;simultaneous&quot;</ins>)
+
+
+sim1 &lt;- test_simultaneous_predictions(out3, f = \(x, z) x - 0.5 * z)
+head(sim1)
+plot(sim1)
+
+```
+In addition, by specifying `ci_scope = c(&quot;global&quot;, &quot;faceted&quot;<ins>, &quot;curve&quot;</ins>)`, one may impose further marginalization (with respect to the uncertainty estimation).
+for the purpose of inference:
+```
+out &lt;- <del>ggpredict</del><ins>term_predictions</ins>(model, terms = c(&quot;x&quot;, &quot;z&quot;, &quot;a<ins>&quot;,</ins> <del>[</del><ins>&quot;b&quot;), values = list(a = c(</ins>-1, 0, 1<del>]&quot;</del><ins>)</ins>, <del>&quot;</del>b <del>[</del><ins>= c(</ins>-1, 0, 1<del>]&quot;</del>)<del>, ci_method = &quot;pointwise&quot;</del><ins>)</ins>, ci_scope = &quot;<del>facetd</del><ins>faceted</ins>&quot;)
+```
+provides simultaneous confidence bands $C^\alpha_{a, b}: \Omega|_{a, b} \to 2^{\mathbb R}$ for $(a,b) \in \{-1, 0, 1\}^2$.
+
+#### Utility
+
+In the case of regression models with more than 4 variables, the simultaneous confidence band based inference implemented in <del>p-ggeffects</del><ins>termeffects</ins>
+allows far more restricted inferences. Indeed, the underlying foundational object<del> of the ggeffects package</del>, the `<del>ggeffect</del><ins>term_predictions</ins>` object<ins>,</ins> is a
+marginalized data grid, together with its respective prediction. The coefficient based inference is determined from the observations, whereas<del> </del>
+(still essentially coefficient based) simultaneous confidence testing requires the additional specification of the domain (which can be lost).
+
+
+## <del>ggpredict_layer</del><ins>term_layer</ins> objects and plotting
+Given some base `<del>ggeffects</del><ins>term_predictions</ins>` object (an adjusted <del>marginalized </del>prediction grid <del>as</del><ins>over</ins> <del>returned</del><ins>two</ins> <del>by</del><ins>continuous</ins> <del>ggpredict,</del><ins>focal</ins> <del>or one of the other methods</del><ins>terms</ins>), a `<del>ggeffects_layer</del><ins>term_layer</ins>` object <del>is</del><ins>holds</ins> <del>a</del><ins>predictions</ins> <del>list</del><ins>along</ins> <del>of</del><ins>curves</ins> <del>`ggeffects`</del><ins>through</ins> <del>object</del><ins>it</ins>, where the underlying <del>models of each non-base object</del><ins>model</ins> is a &#x27;parameterization&#x27; of the base <del>objects</del><ins>object&#x27;s</ins> underlying model subject to some restrictions:
+ - the <del>auxiliary</del><ins>held-constant</ins> variables are all equal to those of the base<del> (facet, panel, grid, response_level)</del>
+ - only the two primary variables were parameterized
+ - the total number of <ins>new </ins>parameters <del>of</del><ins>is</ins> <del>each</del><ins>at</ins> <del>parameterization</del><ins>most</ins> <del>does not increase</del><ins>two</ins>
+In particular, each layer either induces a 1-parametric curve or 2-parameteric curve (which induces a set of 1-parametric curves) in the domain of the base model.
+
+`<del>ggeffects_layer</del><ins>term_layer</ins>` objects were introduced due to the additional difficulty of interpreting heatmap visualizations. The main difficulties are two fold (but<del> </del>
+both the result of colour scale usage): difficulty of distinguishing color values, and diffiliculty contrasting values between points<del>, additionally, </del>. `<del>ggeffects_layers</del><ins>term_layer</ins>`<ins> objects</ins> track data for<del> </del>
+plotting, allowing the generatation of &#x27;anotated&#x27; heatmaps--<del>collections of </del>heatmaps with overlays of discrete families of 1-parameteric curves, and plots of prediction data
+variability along the curves.<del> </del>
+
+Note: marginalizations of<del> ggeffects</del> predictions are parameteric. For example, in the case of standard marginalization $x_i = c$, this method (`<del>ggpredict.ggeffects_layer</del><ins>term_layer</ins>()`) requires<del> </del>
+parameterizations: `list(x1 = &quot;t1&quot;, ..., xn = &quot;tn&quot;)`.
+
+
+### Plotting
+As described, `<del>p-ggeffects</del><ins>termeffects</ins>` <del>extends the plotting feature of `ggeffects` to</del><ins>provides</ins> _two_<del> additional</del> plot types<ins> for surfaces</ins>, and various subfeatures, namely:
+<ins>
+</ins>* Heatmaps <ins>(`term_heatmap()`)</ins>
+<ins>    </ins>*<del> -</del> standard error<ins> or band-width</ins> plotting (on seperate heatmap<ins>, `fill = &quot;std.error&quot;` or `&quot;band_width&quot;`</ins>)
+<ins>    </ins>*<del> -</del> kernel smoothing density estimation<ins> (`show_support = TRUE`)</ins>
+* Heatmaps with overlays<ins> (`layers = `)</ins>
+* Difference plotting for predicted value vs estimated function<ins> (`plot(test, &quot;difference&quot;)`)</ins>
+* directional plotting<ins> (`show_direction = TRUE`)</ins>
+
+Ex:
+``` {r}
+x &lt;- rnorm(500)
+z &lt;- rnorm(500)
+
+y &lt;- x - z + rnorm(500, sd = 2)
+
+
+model &lt;- lm(y ~ x + z)
+pmodel &lt;- parameterize(model, list(x = &quot;s&quot;, z = &quot;s - t&quot;))
+
+pout &lt;- <del>ggpredict</del><ins>term_predictions</ins>(pmodel, terms = c(&quot;t&quot;, &quot;s&quot;))
+
+
+<del>plot</del><ins>term_heatmap</ins>(pout, <del>&quot;heatmap&quot;, show_kernel_density</del><ins>show_support</ins> = TRUE)
+
+ppout1 &lt;- <del>ggpredict</del><ins>term_layer</ins>(pout,<del> </del>
+<del>                    </del><ins>                     </ins>parameterization = list(t = &quot;w^2&quot;,<del> </del>
+<del>                                            </del><ins>                                             </ins>s = &quot;w^3&quot;),<del> </del>
+<del>                    </del><ins>                     </ins>terms = &quot;w&quot;<ins>,
+                     values = list(w = seq(-1, 1, by = 0.05))</ins>)
+<del>                    </del>
+ppout2 &lt;- <del>ggpredict</del><ins>term_layer</ins>(pout,<del> </del>
+<del>                    </del><ins>                     </ins>parameterization = list(t = &quot;r + w^2&quot;,<del> </del>
+<del>                                            </del><ins>                                             </ins>s = &quot;r + w^3&quot;),<del> </del>
+<del>                    </del><ins>                     </ins>terms = c(&quot;w&quot;, &quot;r<ins>&quot;),
+                     values</ins> <del>[</del><ins>= list(w = seq(-1, 1, by = 0.05), r = c(</ins>-1, 0, 1<del>]&quot;</del><ins>)</ins>))
+<del>                    </del>
+<del>      </del>
+ppout1 |&gt; head()
+
+ppout2 |&gt; head()
+<del>           </del>
+<del>plot</del><ins>term_heatmap</ins>(<ins>pout, layers = </ins>ppout1)
+<del>   </del><ins>term_curves(ppout1, show_direction = TRUE)</ins>
+<del>plot</del><ins>
+term_heatmap</ins>(<ins>pout, layers = </ins>ppout2, show_direction = FALSE)<del>     </del>
+<del>                           </del>
+```
+<del>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</del></pre></section><section id="parameterized_models-Rmd"><h2>parameterized_models.Rmd</h2><p class="meta">Student's original: vignettes/introduction_parameterized_model.Rmd in p-ggeffects</p><pre>---
+title: &quot;<del>p-ggeffects:</del><ins>Parameterized</ins> <del>additional features</del><ins>models</ins>&quot;
+output: rmarkdown::html_vignette
+vignette: &gt;
+  %\VignetteIndexEntry{<del>p-ggeffects:</del><ins>Parameterized</ins> <del>additional features</del><ins>models</ins>}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r set-options, echo = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = &quot;#&gt;&quot;,
+  dev = &quot;png&quot;,
+  fig.width = 7,
+  fig.height = 3.5,
+  message = FALSE,
+  warning = FALSE
+)
+options(width = 800)
+
+<del>pkgs &lt;- c</del><ins>library</ins>(<del>
+  &quot;ggplot2&quot;,
+  &quot;splines&quot;,
+  &quot;gridExtra&quot;,
+  &quot;patchwork&quot;,
+  &quot;see&quot;,
+  &quot;survival&quot;,
+  &quot;datawizard&quot;,
+  &quot;htmltools&quot;,
+  &quot;ggeffects&quot;,
+  &quot;rms&quot;
+</del><ins>termeffects</ins>)<del>
+
+# if (!all(vapply(pkgs, requireNamespace, quietly = TRUE, FUN.VALUE = logical(1L)))) {
+#   knitr::opts_chunk$set(eval = TRUE)
+# }
+
+knitr::opts_chunk$set(
+  eval = TRUE,
+  collapse = TRUE,
+  include = TRUE,
+  comment = &quot;#&gt;&quot;,
+  dev = &quot;png&quot;,
+  fig.width = 7,
+  fig.height = 3.5,
+  message = FALSE,
+  warning = FALSE,
+  results = &quot;markup&quot;
+)
+
+
+
+</del>
+library(rms)
+library(splines)
+<del>```
+
+```{r echo=FALSE, message=FALSE}
+library</del><ins>set.seed</ins>(<del>htmltools)
+# callout_tip &lt;- function(header = NULL, ...) {
+#   div(
+#     class = &quot;callout-tip&quot;,
+#     tags$h1(
+#       tags$img(src = &quot;../man/figures/summary.png&quot;, width = &quot;20&quot;, height = &quot;17&quot;, style = &quot;vertical-align:middle&quot;), # nolint
+#       header
+#     ),
+#     ...
+#   )
+# }
+# includeCSS(&quot;../man/figures/callout.css&quot;</del><ins>1</ins>)
+```
+
+
+# parameterized_model objects
+
+## Overview
+A `parameterized_model` is a data structure consiting of a tuple of a fitted regression
+model, and a collection of maps that parameterize the continuous predictive variables
+of the model. Moreover, there exists some auxiliary tracked iformation, ie. new parameters,
+and a parameterization history.
+
+The primary objective of parameterized models is the visualization of higher order data in terms of<del> </del>
+lower order parameteric families via marginalization. As an example, consider the fitted regression model:
+$$
+y = f(x_1, \ldots, x_n; \beta)\quad\text{ with parameterizations}\quad x_i = h_i(z_1, \ldots, z_m)
+$$
+Viewing the regression model as a function, notice that the data of the parameterized model determines<del> </del>
+the data of a model by pulling back by the $h_i$. We do note however, that the observed data for which<del> </del>
+$f_\beta = f(-; \beta)$ was fitted may not be contained in the image of $h = (h_i)_i$, and so the parameterized model
+$f_\beta \circ h$ is almost never determined by the initial observations. For this reason, this parameterization
+is primarily a tool for developing intuitions and visualizations.<del> </del>
+
+Indeed, in sufficiently nice scenarios (for instance if $h$ is smooth), the rank of the parameterized
+model (viewed as the composition $f_\beta \circ h$) is less than or equal to the rank of $f_\beta$.
+Particularly, by fixing arguments in $z$ (to obtain planes), we obtain more varied marginalizations
+of $f_\beta$.
+
+## Simple Example
+
+Suppose we have some regression model $y \sim f_\beta(\operatorname{weight}, \operatorname{height}, \ldots)$. With parameterizations $(t, c, \ldots) \mapsto (ct^2, t, \ldots) = (\operatorname{weight}(t), \operatorname{height}(t), \ldots)$ (where the other function are the identity), we obtain co-level sets in c and $\ldots$ of subsets with fixed BMI,
+and co-level sets in $t$ and $\ldots$ of subsets with fixed height, but variable weight and BMI.
+
+```{r}
+
+w &lt;- rnorm(500, mean = 70, sd = 4)
+h &lt;- rnorm(500, mean = 170, sd = 10)
+
+a &lt;- rnorm(500)
+
+y &lt;- a + w/h^2 + h + w + w^2 * h + rnorm(500)
+
+
+# model example
+model &lt;- lm(y ~ splines::ns(w,3) + splines::ns(h, 3) + splines::ns(w,3) %ia% splines::ns(h,4) + a)
+
+# parameterize model
+pmodel1 &lt;- parameterize(model, parameterizations = list(w = \(t,c) c*t^2, h = \(t) t))
+
+# parameterized model attributes
+print(pmodel1, show_history = TRUE)
+
+# underlying model
+original_model(pmodel1)
+
+# model parameterizations
+parameterizations(pmodel1)
+
+# new model variables
+parameter_variables(pmodel1)
+```
+
+Furthermore, for a data grid `data = data.frame(t = ..., c = ..., a = ...)`, with `predict(pmodel, newdata = data)`, we obtain predictions from the mechanism:
+
+```{r}
+# predict.parameterized_model &lt;- function(object, newdata, ...) {
+#  ...
+#<del>  </del>
+#  newdata &lt;- parameterize_data(object, newdata)
+#
+#  predict(object$model, newdata = newdata, ...)
+#}
+
+<ins># t is height in cm, so c is BMI in kg/cm^2 (BMI 18-22 kg/m^2 = 0.0018-0.0022)
+</ins>df &lt;- as.data.frame(
+    expand.grid(t = 150:200, c = c(18, 20, 22)<ins> / 1e4</ins>, a = 0)
+  )
+<del>  </del>
+head(parameterize_data(<del>pmodel</del><ins>pmodel1</ins>, newdata = df))
+
+head(predict(<del>pmodel</del><ins>pmodel1</ins>, newdata = df))
+
+```
+where `<del>parameterize</del><ins>parameterize_data</ins>`<del> data</del> evaluates the parameterization on the new data.<del> </del>
+
+## <del>ggpredict</del><ins>term_predictions</ins> with parameterized_models.
+
+`<del>ggpredict()`, `ggeffect()`, `ggaverage</del><ins>term_predictions</ins>()` and `<del>ggemmeans</del><ins>term_grid</ins>()` are<del> all</del> implemented for parameterized_model objects. As<del> </del>
+with fitted regression models, the user specifies their primary terms of interest `<del>ggpredict</del><ins>term_predictions</ins>(model, terms, ...)` together
+with auxiliary options. These terms are variables of the parameterizations, or those untransformed variables:
+```
+<del>ggpredict</del><ins>term_predictions</ins>(pmodel, terms = c(&quot;t&quot;, &quot;c<ins>&quot;),</ins> <del>[</del><ins>values = list(c = c(</ins>1, 2, 3<del>]&quot;, ...</del><ins>)</ins>), ...)
+```
+For standard regression models, for unconstrained terms--such as &quot;t&quot;--bounds, and regularly spaced sample points are determined by the data (<del>by taking either the $5\%$ to $95\%$ quantiles as the bounds, or </del>the extrema of the observations). As discussed above, such a method does not extend to parameterized_models. Rather, for all new parameter variables, the <del>minimum</del><ins>largest</ins> <del>square</del><ins>box</ins> (centred at the origin in the parameter space) <del>such that the minimum square cover of its</del><ins>whose</ins> image <del>covers</del><ins>stays within</ins> the extrema of the observations is computed. Where this is not possible (consider a parameterized point or circle), <del>we</del><ins>a</ins> <del>take</del><ins>warning asks for</ins> the <del>domain of interest</del><ins>range</ins> to be <del>the</del><ins>given</ins> <del>image</del><ins>with</ins> <del>of our parameterization</del><ins>`values`</ins>.
+
+## <del>ggpredict_layer</del><ins>term_layer</ins> objects
+Given some base `<del>ggeffects</del><ins>term_predictions</ins>` object (an adjusted <del>marginalized </del>prediction grid <ins>over two continuous focal terms, </ins>as <del>returned</del><ins>drawn</ins> by <del>ggpredict, or one of the other methods</del><ins>`term_heatmap()`</ins>), a `<del>ggeffects_layer</del><ins>term_layer</ins>` object <del>is</del><ins>holds</ins> <del>a</del><ins>predictions</ins> <del>list</del><ins>along</ins> <del>of</del><ins>curves</ins> <del>`ggeffects`</del><ins>through</ins> <del>object</del><ins>it</ins>, where the underlying <del>models of each non-base object</del><ins>model</ins> is a &#x27;parameterization&#x27; of the base <del>objects</del><ins>object&#x27;s</ins> underlying model subject to some restrictions:
+ - the <del>auxiliary</del><ins>held-constant</ins> variables are all equal to those of the base<del> (facet, panel, grid, response_level)</del>
+ - only the two primary variables were parameterized
+ - the total number of <ins>new </ins>parameters <del>of</del><ins>is</ins> <del>each</del><ins>at</ins> <del>parameterization</del><ins>most</ins> <del>does not increase</del><ins>two</ins>
+In particular, each layer either induces a 1-parametric curve or 2-parameteric curve (which induces a set of 1-parametric curves) in the domain of the base model.
+
+Ex:
+``` {r}
+x &lt;- rnorm(500)
+z &lt;- rnorm(500)
+
+y &lt;- x - z + rnorm(500, sd = 2)
+
+
+model &lt;- lm(y ~ x + z)
+pmodel &lt;- parameterize(model, list(x = &quot;t^3 + s&quot;, z = &quot;s - t&quot;))
+
+pout &lt;- <del>ggpredict</del><ins>term_predictions</ins>(pmodel, terms = c(&quot;t&quot;, &quot;s&quot;))
+
+ppout1 &lt;- <del>ggpredict</del><ins>term_layer</ins>(pout,<del> </del>
+<del>                    </del><ins>                     </ins>parameterization = list(t = &quot;sin(w)&quot;,<del> </del>
+<del>                                            </del><ins>                                             </ins>s = &quot;cos(w)&quot;),<del> </del>
+<del>                    </del><ins>                     </ins>terms = &quot;w&quot;<ins>,
+                     values = list(w = seq(0, 2 * pi, length.out = 60))</ins>)
+<del>                    </del>
+ppout2 &lt;- <del>ggpredict</del><ins>term_layer</ins>(pout,<del> </del>
+<del>                    </del><ins>                     </ins>parameterization = list(t = &quot;r * sin(w)&quot;,<del> </del>
+<del>                                            </del><ins>                                             </ins>s = &quot;r * cos(w)&quot;),<del> </del>
+<del>                    </del><ins>                     </ins>terms = c(&quot;w&quot;, &quot;r<del> [n</del><ins>&quot;),
+                     values</ins> = <del>3]&quot;</del><ins>list(w = seq(0, 2 * pi, length.out = 60), r = c(0.5, 1, 1.5)</ins>))
+<del>                    </del>
+<del>      </del>
+ppout1
+
+ppout2
+<del>           </del>
+<del>plot</del><ins>term_heatmap</ins>(<ins>pout, layers = </ins>ppout1, <del>show_kernel_density</del><ins>show_support</ins> = TRUE, <del>threshold_prob</del><ins>support_prob</ins> = 0.975)
+<del>   </del>
+<del>plot</del><ins>term_curves</ins>(ppout2)<del>                    </del>
+<del>                           </del>
+```
+
+
+# Plotting
+<del>trcp-ggeffects</del><ins>termeffects</ins> <del>extends the plotting feature of ggeffects to</del><ins>provides</ins> _two_<del> additional</del> plot types<ins> for surfaces</ins>: heatmaps, and heatmaps with<del> </del>
+overlays of 1-parametric curves. Additionally, as a substitute for plotting observed data, <ins>it </ins>estimates the density of the
+initial observations using kernel smoothing, and <del>computes</del><ins>fades</ins> the <del>ambient</del><ins>regions</ins> <del>density</del><ins>where it is low</ins>.
+
+<del>In</del><ins>Heatmaps</ins> <del>order</del><ins>are</ins> <del>to</del><ins>drawn</ins> <del>accomodate heatmaps, several grid generation methods were deprecated, namely weights averaging. Additonally, 
+in favour of</del><ins>on</ins> regular grids<del> (for the purpose of heatmap plotting)</del>, <del>the</del><ins>which</ins> <del>more</del><ins>`term_predictions()`</ins> <del>adaptive grid generation methods from ggeffects
+were removed</del><ins>generates</ins>.<del> </del>
+
+
+
+
+```{r}
+
+w &lt;- rnorm(500, mean = <del>7000</del><ins>70</ins>, sd = 4)
+h &lt;- rnorm(500, mean = 170, sd = 10)
+
+a &lt;- rnorm(500)
+
+y &lt;- a + w/h^2 + h + w + w^2 * h + rnorm(500)
+
+
+# model example
+model &lt;- lm(y ~ splines::ns(w,3) + splines::ns(h, 3) + splines::ns(w,3) %ia% splines::ns(h,4) + a)
+
+# parameterize model
+pmodel1 &lt;- parameterize(model, parameterizations = list(w = \(t,c) c*t^2, h = \(t) t))
+
+pout &lt;- <del>ggpredict</del><ins>term_predictions</ins>(pmodel1, terms =<del>  </del><ins> </ins>c(&quot;c&quot;, &quot;t&quot;<ins>),
+                         values = list(c = seq(0.0020</ins>, <del>&quot;</del><ins>0.0030, length.out = 30),
+                                       t = seq(150, 190, length.out = 30)),
+                         at = list(</ins>a <del>[</del><ins>= </ins>1<del>]&quot;</del>))
+
+<del>plot</del><ins>term_heatmap</ins>(pout, <del>&quot;heatmap&quot;</del><ins>show_support = TRUE</ins>)
+
+```
+
+
+
+# <del>Simultanrous</del><ins>Simultaneous</ins> confidence bands
+
+<ins>Every `term_predictions()` result also contains a simultaneous confidence band (`band.low`, `band.high`), which covers the predictions at all grid points at once. For parameterized models it is simultaneous over the grid of the new variables. The vignette &quot;termeffects: introduction&quot; explains how the band is computed and how to test a reference function against it.</ins>
+<del>
+
+
+
+
+
+
+
+
+
+</del></pre></section><section id="heart_failure_egfr-Rmd"><h2>heart_failure_egfr.Rmd</h2><p class="meta">Student's original: vignettes/p_ggeffects_demonstration.Rmd in p-ggeffects</p><pre>---
+title: &quot;<del>p-ggeffects</del><ins>termeffects</ins> feature demonstration: Cardiac systolic function and renal health&quot;
+subtitle: &quot;Parametric visualizations and test&quot;
+output:
+  <del>html_document</del><ins>rmarkdown::html_vignette</ins>:
+    toc: true
+    toc_depth: 3
+<del>    df_print</del><ins>vignette</ins>: <del>paged</del><ins>&gt;
+  %\VignetteIndexEntry{termeffects feature demonstration: Cardiac systolic function and renal health}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}</ins>
+---
+
+# Introduction
+
+This case study demonstrates a workflow for **<del>p-ggeffects</del><ins>termeffects</ins>** in which fitting a regression model is deliberately separated from specifying prediction domains and drawing figures. We analyze the `heartfailure` dataset distributed with <ins>termeffects (originally from </ins>`dlookr`<ins>)</ins>, treating **left ventricular ejection fraction (LVEF)** as a continuous outcome. We ask how its *adjusted association* with renal markers varies across creatinine, serum sodium, and age.
+
+The example illustrates <del>five</del><ins>six</ins> tools<del> from the supplied p-ggeffects vignette</del>:
+
+1. **Spline interactions** allow a flexible two-variable response surface.
+2. **`<del>ggpredict</del><ins>term_predictions</ins>()`** produces adjusted predictions on regular grids for heatmaps.
+3. **`parameterize()`** transforms a *fitted* model into clinically meaningful prediction coordinates without refitting it.
+4. **Heatmaps and parameterized overlays** <ins>(`term_heatmap()`, `term_layer()`) </ins>display both the fitted surface and nonlinear constant-eGFR trajectories in the original predictor coordinates.
+5. **`<del>ci_method = &quot;coefficient&quot;`, `plot</del><ins>term_curves</ins>(..., <del>use_scb</del><ins>band</ins> = <del>TRUE</del><ins>&quot;simultaneous&quot;</ins>)`** <del>demonstrate</del><ins>demonstrates</ins> simultaneous uncertainty over a *specified prediction grid*.
+6. **`test_simultaneous_predictions(..., f = f0)`** demonstrates simultaneous comparison with a specified reference function, including a linear reference surface. This is not a general test of linearity.
+
+**Scope.** Every plot has at most two continuous focal coordinates (or one continuous coordinate and age strata). All other predictors are held at stated reference values. In the model-fitting stage, no plotting decisions are made. The resulting analysis is associative, not causal. The data are observational and small (299 patients); apparent nonlinear patterns may be unstable.
+
+<del>**Implementation note.** This is a worked vignette template targeting the API shown in the supplied p-ggeffects vignette. It has been simplified to use standard spline interaction terms that are available in base R, so it can be rendered reliably while preserving the intended p-ggeffects workflow.
+
+</del># Part I — Data and model (no plotting)
+
+## 1. Load packages and inspect the dataset
+
+```{r setup, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(fig.width = 8, fig.height = 5, collapse = TRUE,
+                      comment = &quot;#&gt;&quot;)
+
+<del>input_file &lt;- knitr::current_input</del><ins>library</ins>(<ins>termeffects</ins>)<del>
+input_dir &lt;- if (length(input_file) &amp;&amp; nzchar(input_file)) {
+  dirname(normalizePath(input_file, mustWork = FALSE))
+} else {
+  getwd()
+}
+source_roots &lt;- unique(c(&quot;.&quot;, &quot;..&quot;, file.path(input_dir, &quot;..&quot;),
+                         file.path(input_dir, &quot;../..&quot;)))
+source_roots &lt;- source_roots[vapply(source_roots, function(path) {
+  description &lt;- file.path(path, &quot;DESCRIPTION&quot;)
+  file.exists(description) &amp;&amp;
+    identical(as.character(read.dcf(description, &quot;Package&quot;)[1, 1]), &quot;ggeffects&quot;)
+}, logical(1))]
+
+if (length(source_roots)) {
+  if (!requireNamespace(&quot;pkgload&quot;, quietly = TRUE)) {
+    stop(&quot;Install the pkgload package to render this vignette from the source tree.&quot;)
+  }
+  pkgload::load_all(source_roots[[1]])
+} else if (!requireNamespace(&quot;ggeffects&quot;, quietly = TRUE)) {
+  stop(&quot;Render this vignette from the ggeffects source tree or install ggeffects.&quot;)
+}
+</del>
+library(ggplot2)
+library(splines<del>)
+if (!requireNamespace(&quot;dlookr&quot;, quietly = TRUE)) {
+  install.packages(&quot;dlookr&quot;, repos = &quot;https://cloud.r-project.org&quot;)
+}
+library(dlookr)
+library(ggeffects</del>)
+```
+
+```{r data}
+data(&quot;heartfailure&quot;, package = &quot;<del>dlookr</del><ins>termeffects</ins>&quot;)
+raw &lt;- as.data.frame(heartfailure)
+names(raw)
+str(raw)
+```
+
+We use the conventional column names in the public heart-failure clinical-records dataset<del>. Check the output above if your package version uses different capitalization or labels</del>.
+
+```{r prepare-data}
+required &lt;- c(&quot;ejection_fraction&quot;, &quot;creatinine&quot;, &quot;sodium&quot;,
+              &quot;age&quot;, &quot;sex&quot;, &quot;diabetes&quot;)
+stopifnot(all(required %in% names(raw)))
+dat &lt;- raw[stats::complete.cases(raw[, required]), required]
+# Normalize the public<del> dlookr</del> dataset to the conventional names used below,
+# and encode the categorical predictors as 0/1 for easy fixed-value
+# conditioning in the parameterized predictions.
+dat &lt;- stats::setNames(dat, c(&quot;ejection_fraction&quot;, &quot;serum_creatinine&quot;,
+                              &quot;serum_sodium&quot;, &quot;age&quot;, &quot;sex&quot;, &quot;diabetes&quot;))
+dat$sex &lt;- as.integer(dat$sex == &quot;Male&quot;)
+dat$diabetes &lt;- as.integer(dat$diabetes == &quot;Yes&quot;)
+stopifnot(all(dat$sex %in% c(0, 1)))
+stopifnot(all(dat$diabetes %in% c(0, 1)))
+summary(dat)
+```
+
+## 2. Fit one regression model
+
+The outcome is LVEF (%). We allow a nonlinear creatinine–sodium interaction and a nonlinear creatinine–age interaction, with modest spline degrees of freedom. Sex and diabetes are adjustment variables. This model is intentionally illustrative; its adequacy should be assessed before substantive clinical interpretation.
+
+```{r fit-model}
+model &lt;- lm(
+  ejection_fraction ~
+    ns(serum_creatinine, df = 3) +
+    ns(serum_sodium, df = 3) +
+    ns(age, df = 3) +
+    ns(serum_creatinine, df = 3) * ns(serum_sodium, df = 3) +
+    ns(serum_creatinine, df = 3) * ns(age, df = 3) +
+    sex + diabetes,
+  data = dat
+)
+summary(model)
+```
+
+**Modeling caveat:** Two 3-by-3 interactions can still be ambitious for 299 observations. Inspect residuals, collinearity, and prediction uncertainty; if necessary, remove one interaction or reduce basis dimensions. Do not choose the model merely to produce visually interesting heatmaps.
+
+```{r model-diagnostics}
+plot(fitted(model), resid(model),
+     xlab = &quot;Fitted LVEF (%)&quot;, ylab = &quot;Residual&quot;,
+     main = &quot;Residuals versus fitted values&quot;)
+abline(h = 0, lty = 2)
+```
+
+# Part II — Prediction definitions (no plotting)
+
+## 3. Choose explicit adjustment values
+
+All non-focal predictors are **fixed at a common reference profile**, rather than averaged over the patient distribution. <del>This is one of the marginalization choices supported by the ggeffects workflow. </del>The reference profile is descriptive, not necessarily a typical individual.
+
+```{r reference-values}
+ref_age &lt;- median(dat$age)
+ref_sodium &lt;- median(dat$serum_sodium)
+ref_creatinine &lt;- median(dat$serum_creatinine)
+ref_sex &lt;- 1                 # Male for eGFR illustrations
+ref_diabetes &lt;- 0
+```
+
+**Prediction API note:** `<del>ggpredict</del><ins>term_predictions</ins>()` <del>normally chooses typical values for</del><ins>holds</ins> non-focal <del>terms.</del><ins>predictors</ins> <del>For</del><ins>at</ins> <del>strict</del><ins>their</ins> <del>consistency,</del><ins>median</ins> <del>check</del><ins>(numeric)</ins> <del>its</del><ins>or</ins> <del>`condition`</del><ins>most</ins> <del>/</del><ins>common</ins> <del>adjustment-</del>value <del>arguments</del><ins>(categorical) unless they are given</ins> in <del>your</del><ins>`at`.</ins> <del>development version</del><ins>Below</ins>, <del>or</del><ins>sex</ins> <del>construct</del><ins>and</ins> <del>explicit</del><ins>diabetes are passed explicitly in `at`, so every</ins> prediction <del>data using `predict()` on</del><ins>uses</ins> the <del>parameterized</del><ins>same</ins> <del>model.</del><ins>reference</ins> <del>The</del><ins>profile;</ins> <del>following</del><ins>each</ins> <del>`ggpredict()`</del><ins>result</ins> <del>calls demonstrate</del><ins>prints</ins> the <del>vignette&#x27;s</del><ins>values</ins> <del>concise</del><ins>it</ins> <del>interface; inspect their printed adjustment metadata before comparing panels</del><ins>used</ins>.
+
+## 4. Predictions on the original coordinates
+
+```{r prediction-surfaces}
+# The output objects are data frames containing predicted values,
+# <ins>pointwise </ins>confidence limits, <ins>simultaneous band limits, </ins>and<ins> the
+#</ins> focal-variable grid coordinates.
+<ins>reference_profile &lt;- list(sex = ref_sex, diabetes = ref_diabetes)
+
+</ins>pred_creat_sodium &lt;- <del>ggpredict</del><ins>term_predictions</ins>(
+  model,
+  terms = c(&quot;serum_creatinine&quot;, &quot;serum_sodium&quot;),
+  <del>ci_method</del><ins>at</ins> = <del>&quot;coefficient&quot;</del><ins>c(reference_profile, list(age = ref_age))</ins>
+)
+
+pred_age_creat &lt;- <del>ggpredict</del><ins>term_predictions</ins>(
+  model,
+  terms = c(&quot;age&quot;, &quot;serum_creatinine&quot;),
+  <del>ci_method</del><ins>at</ins> = <del>&quot;coefficient&quot;</del><ins>c(reference_profile, list(serum_sodium = ref_sodium))</ins>
+)
+```
+
+## 5. Define the nonlinear eGFR transformation
+
+For demonstration we use the **2021 CKD-EPI creatinine equation**, which depends on serum creatinine (mg/dL), age (years), and sex. This is an estimated kidney-function measure, not a direct measurement. Its application to these historical records is retrospective.
+
+<ins>\[
+\text{eGFR} = 142 \cdot \min(C/\kappa, 1)^{\alpha} \cdot \max(C/\kappa, 1)^{-1.200} \cdot 0.9938^{A} \cdot (1.012 \text{ if female}),
+\]
+with $\kappa = 0.7$, $\alpha = -0.241$ for women and $\kappa = 0.9$, $\alpha = -0.302$ for men.
+
+</ins>```{r egfr-functions}
+# <del>A simple monotone approximation that stays finite over the age and eGFR
+# ranges used in this vignette. The goal here is to demonstrate the
+# parameterization workflow, not to reproduce the exact</del><ins>2021</ins> CKD-EPI <ins>creatinine </ins>equation<ins> (sex: 1 = male, 0 = female)</ins>.
+egfr_ckdepi &lt;- function(creatinine, age, sex) {
+  <del>sex_shift</del><ins>kappa</ins> &lt;- ifelse(sex == 1, 0<ins>.9, 0.7)
+  alpha &lt;- ifelse(sex == 1</ins>, -<del>4</del><ins>0.302, -0.241</ins>)
+  <del>90 - 18</del><ins>142</ins> * <ins>pmin</ins>(creatinine <del>-</del><ins>/ kappa,</ins> 1)<del> - 0.35</del><ins>^alpha</ins> * <ins>pmax</ins>(<ins>creatinine / kappa, 1)^-1.200 *
+    0.9938^</ins>age <del>-</del><ins>*</ins> <del>60</del><ins>ifelse(sex == 1, 1, 1.012</ins>)<del> + sex_shift</del>
+}
+
+# Inverse transformation used to define the parameterized model<ins>: the
+# creatinine at which a patient of this age and sex has the given eGFR</ins>.
+creatinine_from_egfr &lt;- function(egfr, age, sex) {
+  <del>n &lt;- max(length(egfr), length(age), length(sex))
+  egfr &lt;- rep_len(egfr, n)
+  age &lt;- rep_len(age, n)
+  sex &lt;- rep_len(sex, n)
+  sex_shift</del><ins>kappa</ins> &lt;- ifelse(sex == 1, 0<ins>.9, 0.7)
+  alpha &lt;- ifelse(sex == 1</ins>, -<del>4</del><ins>0.302, -0.241</ins>)
+  <del>1</del><ins>ratio</ins> <del>+ (90 </del><ins>&lt;</ins>- egfr <del>+</del><ins>/ (142 *</ins> 0.<del>35</del><ins>9938^age</ins> * <ins>ifelse</ins>(<del>age</del><ins>sex</ins> <del>-</del><ins>==</ins> <del>60</del><ins>1, 1, 1.012</ins>)<ins>)
+  kappa</ins> <del>-</del><ins>*</ins> <del>sex_shift)</del><ins>ifelse(ratio &gt;= 1, ratio^(1</ins> / <del>18</del><ins>alpha), ratio^(1 / -1.200))</ins>
+}<ins>
+
+# check: the inverse undoes the equation
+creatinine_from_egfr(egfr_ckdepi(c(0.6, 1, 2.5), age = 65, sex = 1), age = 65, sex = 1)</ins>
+```
+
+The sex-dependent transformation is **not** obtained by averaging sex first. For clarity, all eGFR plots below use a fixed male reference profile. The original model still includes sex as an adjustment variable.
+
+## 6. Parameterize the already-fitted model
+
+This is the central <del>p-ggeffects</del><ins>termeffects</ins> step. We do **not** refit `model`: we change only the inputs used for prediction. For a given eGFR and age, the parameterization computes the corresponding serum creatinine.
+
+```{r parameterize-model}
+<del># A small, stable inverse mapping keeps the vignette focused on the
+# p-ggeffects parameterization workflow while remaining numerically well behaved.
+</del>pmodel_egfr &lt;- parameterize(
+  model,
+  parameterizations = list(
+    serum_creatinine = function(egfr, age) {
+      <del>1</del><ins>creatinine_from_egfr(egfr,</ins> <del>+</del><ins>age,</ins> <del>(90 - egfr + 0.35 * (age - 60) - ifelse(ref_sex</del><ins>sex</ins> =<del>=</del> <del>1, 0, -4</del><ins>ref_sex</ins>)<del>) / 18</del>
+    },
+    sex = function(egfr, age) {
+      rep(ref_sex, length.out = max(length(egfr), length(age)))
+    }
+  )
+)
+
+print(pmodel_egfr, show_history = TRUE)
+parameter_variables(pmodel_egfr)
+```
+
+The transformed model depends on `egfr` and `age`, in addition to the original untransformed predictors such as sodium and diabetes. Its fitted coefficients remain those of `model`.
+
+```{r prediction-egfr}
+<del>egfr_grid</del><ins>pred_egfr</ins> &lt;- <del>expand.grid</del><ins>term_predictions</ins>(
+  <ins>pmodel_egfr,
+  terms = c(&quot;egfr&quot;, &quot;age&quot;),
+  values = list(</ins>egfr = seq(20, 90, by = 2),<del>
+  </del><ins> </ins>age = c(50, 65, 80)<ins>)</ins>,
+  <ins>at = list(</ins>serum_sodium = ref_sodium,<del>
+  </del><ins> </ins>diabetes = ref_diabetes<del>,
+  sex = ref_sex
+)
+
+pred_egfr &lt;- cbind(
+  egfr_grid,
+  predicted = predict(pmodel_egfr, newdata = egfr_grid</del>)
+)
+<del>head(</del>pred_egfr<del>)</del>
+```
+
+# Part III — Visualization
+
+## Figure 1 — Nonlinear creatinine × sodium heatmap
+
+**Focal variables:** creatinine and sodium. **Other predictors:** adjusted at reference values. **Question:** Does the adjusted association of creatinine with LVEF vary by sodium concentration?
+
+```{r plot-heatmap, fig.cap=&quot;Adjusted LVEF surface in original predictor coordinates.<ins> Faded: outside the region holding 97.5% of the patients.</ins>&quot;}
+<del>plot</del><ins>term_heatmap</ins>(pred_creat_sodium, <del>&quot;heatmap&quot;</del><ins>show_support = TRUE, show_data = TRUE</ins>)
+```
+
+The density overlay is important: a smooth model can extrapolate into combinations of creatinine and sodium that are poorly represented in the sample. Interpret those regions cautiously.
+
+## Figure 2 — Creatinine × age heatmap with constant-eGFR curves
+
+**Focal variables:** creatinine and age. **Overlay:** constant eGFR at 30, 45, 60, and 90 mL/min/1.73 m². **Other predictors:** adjusted; sex fixed <del>at</del><ins>to</ins> <del>the chosen reference for the overlay</del><ins>male</ins>.
+
+This is an annotated original-coordinate heatmap. The <del>contours</del><ins>curves</ins> are **not** extra axes or extra facets: each <del>contour</del><ins>curve</ins> is a one-dimensional path in the same two-dimensional predictor plane.
+
+```{r contour-data}
+# <del>Convert</del><ins>A layer follows curves through</ins> the <del>prediction</del><ins>heatmap:</ins> <del>object</del><ins>age</ins> <del>to</del><ins>runs</ins> <del>an</del><ins>along</ins> <del>ordinary</del><ins>each</ins> <del>data frame for a transparent</del><ins>curve</ins>
+# <del>ggplot overlay. ggpredict uses &#x27;x&#x27;</del><ins>(t),</ins> and <del>&#x27;group&#x27;</del><ins>creatinine</ins> <del>for</del><ins>is</ins> the <del>first</del><ins>value</ins> <del>two</del><ins>giving</ins> <del>focal</del><ins>that</ins> <del>terms</del><ins>curve&#x27;s eGFR at that age</ins>.
+<del>surface</del><ins>egfr_layer</ins> &lt;- <del>as.data.frame(pred_age_creat)
+surface$age &lt;- as.numeric(as.character(surface$x))
+surface$serum_creatinine &lt;- as.numeric(as.character(surface$group))
+
+# Make a fine grid solely for the deterministic eGFR contour geometry.
+contour_grid &lt;- expand.grid</del><ins>term_layer</ins>(
+  <ins>pred_age_creat,
+  parameterization = list(
+    </ins>age<ins> = function(t) t,
+    serum_creatinine = function(t, egfr) creatinine_from_egfr(egfr, age = t, sex = ref_sex)
+  ),
+  terms = c(&quot;t&quot;, &quot;egfr&quot;),
+  values = list(t</ins> = seq(min(dat$age), max(dat$age), <del>length.out</del><ins>by</ins> = <del>120</del><ins>1</ins>),<del>
+  serum_creatinine</del><ins> egfr</ins> = <del>seq</del><ins>c</ins>(<del>
+    quantile(dat$serum_creatinine</del><ins>30</ins>, <del>.02),
+    quantile(dat$serum_creatinine</del><ins>45</ins>, <del>.98)</del><ins>60</ins>, <del>length.out = 120
+  </del><ins>90)</ins>)
+<del>)
+contour_grid$egfr &lt;- with(contour_grid,
+  egfr_ckdepi(serum_creatinine, age, sex = ref_sex)</del>)
+```
+
+```{r plot-egfr-overlays, fig.cap=&quot;Original-coordinate prediction heatmap with nonlinear constant-eGFR <del>contours</del><ins>curves</ins>.&quot;}
+<del>ggplot</del><ins>term_heatmap</ins>(<del>surface</del><ins>pred_age_creat</ins>, <del>aes(x</del><ins>layers</ins> = <del>age</del><ins>egfr_layer</ins>, <del>y = serum_creatinine)) +
+  geom_raster(aes(fill = predicted), interpolate</del><ins>show_support</ins> = TRUE<del>) +
+  geom_contour(
+    data = contour_grid,
+    aes(x = age, y = serum_creatinine, z = egfr),
+    breaks = c(30, 45, 60, 90),
+    colour = &quot;white&quot;, linewidth = 0.65,
+    inherit.aes = FALSE
+  ) +
+  scale_fill_viridis_c(name = &quot;Predicted LVEF (%)&quot;</del>) +
+  labs(x = &quot;Age (years)&quot;, y = &quot;Serum creatinine (mg/dL)&quot;<del>,
+       subtitle = &quot;White curves: eGFR 30, 45, 60, 90; sex fixed to male&quot;) +
+  theme_minimal(</del>)
+```
+
+**How this connects to <del>p-ggeffects</del><ins>termeffects</ins> layers:** The overlaid curves are level sets of a nonlinear parameterization of the original predictors<ins>, computed by `term_layer()`</ins>. The <del>code</del><ins>layer</ins> <del>draws</del><ins>also</ins> <del>deterministic</del><ins>holds</ins> <del>contour</del><ins>the</ins> <del>geometry</del><ins>predictions along each curve,</ins> with <del>ggplot</del><ins>a</ins> <del>for</del><ins>band</ins> <del>reliability</del><ins>that</ins> <del>and</del><ins>is</ins> <del>transparency.</del><ins>simultaneous</ins> <del>To showcase</del><ins>over</ins> the <del>package&#x27;s</del><ins>curves:
+
+```{r</ins> <del>native `ggeffects_layer` implementation</del><ins>plot-egfr-layer-curves</ins>, <del>replace</del><ins>fig.cap=&quot;Predicted LVEF along</ins> the <del>contour</del><ins>constant-eGFR</ins> <del>construction with `ggpredict(pred_age_creat</del><ins>curves</ins>, <del>parameterization</del><ins>by age.&quot;}
+term_curves(egfr_layer) + labs(x</ins> = <del>...,</del><ins>&quot;Age</ins> <del>terms = ...</del><ins>(years</ins>)<ins>&quot;)
+</ins>`<del> and its corresponding layer plot once the precise overlay API is confirmed in your development checkout. The *statistical predictions* in the heatmap already come from p-ggeffects.</del><ins>``</ins>
+
+## Figure 3 — LVEF versus eGFR with simultaneous confidence bands
+
+**Focal variables:** eGFR and age (three representative ages). **Other predictors:** adjusted; sex fixed to male. **Question:** How do adjusted predictions vary over kidney-function values, and how does simultaneous uncertainty differ from pointwise uncertainty?
+
+```{r <del>pointwise-egfr-prediction}
+pred_egfr_pointwise &lt;- ggpredict(
+  model,
+  terms = c(&quot;serum_creatinine [0.8:4.5 by=0.2]&quot;, &quot;age [50, 65, 80]&quot;),
+  ci_method = &quot;coefficient&quot;
+)
+```
+
+```{r </del>plot-egfr-pointwise, fig.cap=&quot;Pointwise confidence intervals for age-stratified eGFR predictions.&quot;}
+<del>plot</del><ins>term_curves</ins>(<del>pred_egfr_pointwise</del><ins>pred_egfr</ins>, <del>use_scb</del><ins>band</ins> = <del>FALSE</del><ins>&quot;pointwise&quot;</ins>)
+```
+
+```{r plot-egfr-simultaneous, fig.cap=&quot;Simultaneous confidence bands over the specified eGFR-by-age prediction grid.&quot;}
+<del>plot</del><ins>term_curves</ins>(<del>pred_egfr_pointwise</del><ins>pred_egfr</ins>, <del>use_scb</del><ins>band</ins> = <del>TRUE</del><ins>&quot;simultaneous&quot;</ins>)
+```
+
+The simultaneous band is calibrated for the **finite generated prediction grid**, not automatically for every point in a continuous domain. The `ci_scope` setting <del>(where supported) </del>controls whether uncertainty is simultaneous across the full set of age curves <ins>(`&quot;global&quot;`, the default) </ins>or separately within each age group<ins> (`&quot;curve&quot;`)</ins>. State that choice explicitly in any published figure.
+
+## Figure 4 — Simultaneous test against a specified linear surface
+
+We test the **fixed, prespecified** linear reference surface
+\[
+f_0(C,S) = 40 - 3(C-1) + 0.2(S-137),
+\]
+with LVEF measured in percentage points. The test is simultaneous over the **creatinine–sodium grid**, with other predictors adjusted as in Figure 1. This is a test of equality to this *particular* linear function, not a general test that the response is linear.
+
+```{r simultaneous-reference-test}
+f0 &lt;- function(serum_creatinine, serum_sodium) {
+  40 - 3 * (serum_creatinine - 1) + 0.2 * (serum_sodium - 137)
+}
+
+sim_test &lt;- test_simultaneous_predictions(
+  pred_creat_sodium,
+  f = f0
+)
+<del>head(as.data.frame(</del>sim_test<del>))</del>
+plot(sim_test)
+```
+
+The reference function&#x27;s argument names match the **original predictors**<del>, as required by the supplied package vignette</del>. The plotted deviations and simultaneous band are only for the grid that was generated.
+
+## 7. Limits of simultaneous inference after marginalization
+
+The `test_simultaneous_predictions()` implementation works on a `<del>ggeffects</del><ins>term_predictions</ins>` or `<del>ggeffects_layer</del><ins>term_layer</ins>` object, **not on the entire original regression function**. These objects store predictions on a chosen focal grid after the remaining model predictors have been <del>marginalized (for example, </del>fixed at representative values<del>)</del>. This imposes important limitations:
+
+- **Restricted domain.** The simultaneous test concerns only the generated grid of focal terms, not all combinations of predictors in the original model. A conclusion for the creatinine–sodium surface does not establish a corresponding conclusion for every age, sex, or diabetes status.
+- **Marginalization is baked in.** The non-focal variables have already been <del>reduced</del><ins>fixed</ins> <del>according to</del><ins>at</ins> the prediction object&#x27;s <del>adjustment</del><ins>reference</ins> <del>scheme</del><ins>values</ins>. The test cannot recover their full variation, interactions, or the original higher-dimensional domain from that object.
+- **Scope depends on the prediction object.** A `<del>ggeffects_layer</del><ins>term_layer</ins>` can restrict the domain further to selected parameterized curves. A simultaneous band over such a layer does not provide simultaneous coverage over the entire background heatmap or over unplotted curves.
+- **Finite-grid inference.** The critical value is computed for the generated prediction points; it is not automatically valid uniformly over a continuous region between those points.
+- **A specified reference is not a general shape test.** Comparing against one linear `f0` only assesses that particular surface, at the chosen adjustment values. Rejecting it does not prove nonlinearity, and failing to reject it does not establish linearity. A fully general test of linearity would need to account for the family of possible linear functions and any uncertainty in estimated reference coefficients.
+
+Thus, the demonstration above is intentionally a **simultaneous test against a fixed reference function on a marginalized grid**, rather than a global test of linearity of the fitted multivariable regression. The marginalization choices and grid must be reported alongside the result.
+
+# Part IV — Interpretation and reproducibility
+
+## 8. Questions to answer after rendering
+
+- **Figure 1:** Is there evidence of a nonlinear creatinine–sodium interaction? Which regions have adequate observational support?
+- **Figure 2:** Along a constant-eGFR curve, does predicted LVEF change appreciably with age? If so, eGFR alone does not capture the fitted age–creatinine association.
+- **Figure 3:** How much wider are simultaneous bands than pointwise intervals? Which portions of the prediction domain are too uncertain for strong conclusions?
+- **Figure 4:** Is the specified linear reference surface compatible with the fitted predictions over the grid? What does the test establish—and what does it not establish—about linearity?
+
+## 9. Important qualifications
+
+1. **No causal interpretation.** These are conditional associations in an observational dataset.
+2. **Small sample.** Nonlinear interactions may be weakly identified. Consider reduced splines, bootstrap stability checks, and out-of-sample validation.
+3. **Sparse support.** Limit grids and overlays to observed or well-supported regions; not all constant-eGFR curves are represented in the data.
+4. **LVEF is the response.** The example does not use death or follow-up time, even though those fields are available.
+5. **Consistent adjustment.** Verify the adjustment profile <del>recorded</del><ins>printed</ins> <del>by</del><ins>with</ins> each `<del>ggpredict</del><ins>term_predictions</ins>()` result, particularly for sex and diabetes. Fix sex before interpreting sex-specific eGFR contours.
+6. **Separate fitting from presentation.** To change the grid, eGFR transformation, or plotting style, update Parts II–III. The fitted `model` in Part I remains unchanged.
+
+## 10. Optional extension
+
+If a later dataset includes **height and weight**, the *same conceptual workflow* can be extended to a height × weight heatmap with constant-BMI and constant-body-surface-area curves. Do not add those variables to this dataset: they are not recorded in `<del>dlookr::</del>heartfailure`.
+</pre></section><section id="heart_failure_renal_index-Rmd"><h2>heart_failure_renal_index.Rmd</h2><p class="meta">Student's original: vignettes/p_ggeffects_heart_failure.Rmd in p-ggeffects</p><pre>---
+title: &quot;<del>p-ggeffects</del><ins>termeffects</ins>: nonlinear predictions and parameterizations&quot;
+subtitle: &quot;Heart-failure data — prediction, parameterization, and simultaneous inference&quot;
+output:
+  <del>html_document</del><ins>rmarkdown::html_vignette</ins>:
+    toc: true
+    toc_depth: 2<ins>
+vignette: &gt;
+  %\VignetteIndexEntry{termeffects: nonlinear predictions and parameterizations}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}</ins>
+---
+
+# Introduction
+
+This example uses <ins>the `heartfailure` data (distributed with termeffects, originally from </ins>`dlookr<del>::heartfailure</del>`<ins>)</ins> to demonstrate how **<del>p-ggeffects</del><ins>termeffects</ins> separates model fitting, prediction, parameterization, and presentation**. The response is left ventricular ejection fraction (LVEF); the analysis is illustrative and associative, not causal.
+
+| Feature | Demonstration |
+|:--|:--|
+| Nonlinear interactions | Natural spline interactions in a single fitted model |
+| `<del>ggpredict</del><ins>term_predictions</ins>()` | Adjusted prediction surfaces on original predictor coordinates |
+| `<del>plot</del><ins>term_heatmap</ins>(<del>..., &quot;heatmap&quot;</del>)` | Visualize a two-dimensional response surface |
+| `parameterize()` | Predict using a derived renal-function coordinate without refitting |
+| `<del>ggeffects_layer</del><ins>term_layer()</ins>`<del> workflow</del> | Evaluate a prediction surface along parameterized curves |
+| Simultaneous inference | Compare pointwise and simultaneous bands; test against a specified function |
+
+**Plotting rule:** No more than two continuous focal coordinates are shown at once. Other variables are <del>reduced</del><ins>held</ins> <del>to</del><ins>at</ins> the <del>adjustment</del><ins>reference</ins> profile chosen by `<del>ggpredict</del><ins>term_predictions</ins>()`<ins> (median or most common value)</ins>, or fixed explicitly <del>for</del><ins>with</ins> <del>manually constructed predictions</del><ins>`at`</ins>.
+
+# Part I — Fit the model
+
+The response is modeled using ordinary least squares. Natural cubic splines with three degrees of freedom allow nonlinear main effects; their interactions allow the association with one predictor to vary across another. Two interactions are included to provide two distinct prediction surfaces. Sex and diabetes enter as additive adjustment terms. No prediction grid is specified during fitting.
+
+```{r setup, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(fig.width = 8, fig.height = 5,
+                      collapse = TRUE, comment = &quot;#&gt;&quot;)
+
+<del>input_file &lt;- knitr::current_input</del><ins>library</ins>(<ins>termeffects</ins>)<del>
+input_dir &lt;- if (length(input_file) &amp;&amp; nzchar(input_file)) {
+  dirname(normalizePath(input_file, mustWork = FALSE))
+} else {
+  getwd()
+}
+source_roots &lt;- unique(c(&quot;.&quot;, &quot;..&quot;, file.path(input_dir, &quot;..&quot;),
+                         file.path(input_dir, &quot;../..&quot;)))
+source_roots &lt;- source_roots[vapply(source_roots, function(path) {
+  description &lt;- file.path(path, &quot;DESCRIPTION&quot;)
+  file.exists(description) &amp;&amp;
+    identical(as.character(read.dcf(description, &quot;Package&quot;)[1, 1]), &quot;ggeffects&quot;)
+}, logical(1))]
+
+if (length(source_roots)) {
+  if (!requireNamespace(&quot;pkgload&quot;, quietly = TRUE)) {
+    stop(&quot;Install the pkgload package to render this vignette from the source tree.&quot;)
+  }
+  pkgload::load_all(source_roots[[1]])
+} else if (!requireNamespace(&quot;ggeffects&quot;, quietly = TRUE)) {
+  stop(&quot;Render this vignette from the ggeffects source tree or install ggeffects.&quot;)
+}
+</del>
+library(ggplot2)
+library(splines<del>)
+library(ggeffects)
+library(dlookr</del>)
+```
+
+```{r data-and-model}
+data(&quot;heartfailure&quot;, package = &quot;<del>dlookr</del><ins>termeffects</ins>&quot;)
+raw &lt;- as.data.frame(heartfailure)
+
+dat &lt;- raw[c(&quot;ejection_fraction&quot;, &quot;creatinine&quot;, &quot;sodium&quot;,
+             &quot;age&quot;, &quot;sex&quot;, &quot;diabetes&quot;)]
+names(dat) &lt;- c(&quot;ejection_fraction&quot;, &quot;serum_creatinine&quot;,
+                &quot;serum_sodium&quot;, &quot;age&quot;, &quot;sex&quot;, &quot;diabetes&quot;)
+dat &lt;- na.omit(dat)
+dat$sex &lt;- as.integer(dat$sex == &quot;Male&quot;)
+dat$diabetes &lt;- as.integer(dat$diabetes == &quot;Yes&quot;)
+
+model &lt;- lm(
+  ejection_fraction ~
+    ns(serum_creatinine, df = 3) * ns(serum_sodium, df = 3) +
+    ns(serum_creatinine, df = 3) * ns(age, df = 3) +
+    sex + diabetes,
+  data = dat
+)
+summary(model)
+```
+
+# Part II — Specify predictions
+
+Here we choose the prediction domains, **without refitting** the regression.
+
+## Feature 1 — Original-coordinate prediction surfaces
+
+`<del>ggpredict</del><ins>term_predictions</ins>()` evaluates the fitted model on a grid of focal predictors and returns adjusted predictions with <del>uncertainty</del><ins>pointwise confidence</ins> intervals<ins> and simultaneous confidence bands</ins>. The `terms` argument specifies the displayed coordinates. Predictors omitted from `terms` are <del>handled</del><ins>held</ins> <del>by</del><ins>at</ins> <del>the</del><ins>their</ins> <del>function&#x27;s</del><ins>median</ins> <del>adjustment</del><ins>(numeric)</ins> <del>rules</del><ins>or most common value (categorical)</ins>, reducing the original multivariable model to a two-dimensional surface. <del>`ci_method</del><ins>The</ins> <del>=</del><ins>intervals</ins> <del>&quot;coefficient&quot;`</del><ins>use</ins> <del>requests coefficient-based</del><ins>the</ins> uncertainty <del>estimates</del><ins>in the fitted regression coefficients</ins>, which <del>are</del><ins>is</ins> also used in the simultaneous-inference examples.
+
+Creatinine–sodium and age–creatinine grids are generated separately to examine the two fitted interactions. Both use the same regression model.
+
+```{r predict-surfaces}
+pred_creat_sodium &lt;- <del>ggpredict</del><ins>term_predictions</ins>(
+  model,
+  terms = c(&quot;serum_creatinine&quot;, &quot;serum_sodium&quot;)<del>,
+  ci_method = &quot;coefficient&quot;</del>
+)
+
+pred_age_creat &lt;- <del>ggpredict</del><ins>term_predictions</ins>(
+  model,
+  terms = c(&quot;age&quot;, &quot;serum_creatinine&quot;)<del>,
+  ci_method = &quot;coefficient&quot;</del>
+)
+```
+
+## Feature 2 — Parameterize a fitted model
+
+`parameterize()` constructs a prediction model by expressing one or more original predictors as functions of new coordinates. It reuses the coefficients of the fitted model; the transformation affects prediction inputs rather than estimation.
+
+For a simple demonstration, define a **synthetic renal-function index** as a function of creatinine and age. This is *not* clinical eGFR or the CKD-EPI equation; its sole purpose is to illustrate a nonlinear change of prediction coordinates. A validated eGFR equation could replace it in an applied analysis<ins> (see the vignette &quot;termeffects feature demonstration&quot;, which uses the 2021 CKD-EPI equation)</ins>.
+
+\[
+R = \frac{100\exp[-0.01(A-60)]}{C}, \qquad
+C = \frac{100\exp[-0.01(A-60)]}{R}.
+\]
+
+```{r parameterize-model}
+renal_index &lt;- function(creatinine, age) {
+  100 * exp(-0.01 * (age - 60)) / creatinine
+}
+
+creatinine_from_index &lt;- function(index, age) {
+  100 * exp(-0.01 * (age - 60)) / index
+}
+
+pmodel &lt;- parameterize(
+  model,
+  parameterizations = list(
+    serum_creatinine = function(index, age) {
+      100 * exp(-0.01 * (age - 60)) / index
+    }
+  )
+)
+
+parameter_variables(pmodel)
+```
+
+The index is inversely related to creatinine and decreases with age at fixed creatinine. The inverse expression is used because prediction requires reconstructing the original creatinine value from the index and age. The original regression coefficients remain unchanged.
+
+```{r predict-parameterized}
+ref_sodium &lt;- median(dat$serum_sodium)
+index_data &lt;- expand.grid(
+  index = seq(40, 120, by = 2),
+  age = c(50, 65, 80),
+  serum_sodium = ref_sodium,
+  sex = 1,
+  diabetes = 0
+)
+index_data$predicted &lt;- predict(pmodel, newdata = index_data)
+head(index_data)
+```
+
+## Feature 3 — Parameterized curves on a surface
+
+A <ins>layer (</ins>`<del>ggeffects_layer</del><ins>term_layer()</ins>`<ins>)</ins> represents predictions along a parameterized subset of an existing prediction surface. This permits comparisons along curves defined by relationships among focal variables, without adding another plot axis. <del>Such</del><ins>Layers</ins> <del>layers can be</del><ins>are</ins> generated by calling `<del>ggpredict</del><ins>term_layer</ins>()` with a `parameterization` on an existing prediction object.
+
+Here, constant-index trajectories are curves in the age–creatinine plane. The parameterized age coordinate `t` is centered at zero, with zero corresponding to the midpoint of the observed age range. The parameterization maps this centered coordinate back to age and creatinine, keeping the overlay in the heatmap domain while following <del>p-ggeffects&#x27;</del><ins>the</ins> centered-coordinate convention<ins> of parameterized models</ins>.
+
+```{r prediction-layer}
+age_center &lt;- mean(range(dat$age))
+age_deviation &lt;- range(dat$age) - age_center
+<del>age_term &lt;- sprintf(&quot;t [%.1f:%.1f by=1]&quot;, age_deviation[1], age_deviation[2])
+</del>
+layer_index &lt;- <del>ggpredict</del><ins>term_layer</ins>(
+  pred_age_creat,
+  parameterization = list(
+    age = sprintf(&quot;t + %.1f&quot;, age_center),
+    serum_creatinine = sprintf(
+      &quot;100 * exp(-0.01 * (t + %.1f - 60)) / r&quot;,
+      age_center
+    )
+  ),
+  terms = c(<del>age_term</del><ins>&quot;t&quot;</ins>, &quot;r<ins>&quot;),
+  values</ins> <ins>= list(t = seq(age_deviation</ins>[<ins>1], age_deviation[2], by = 1),
+                r = c(</ins>40, 60, 80, 100<del>]&quot;</del><ins>)</ins>)
+)
+head(as.data.frame(layer_index<del>[[2]]</del>))
+```
+
+# Part III — Plot the predictions
+
+This part consumes the objects defined above; it does **not** fit models.
+
+## Figure 1 — Nonlinear interaction heatmap
+
+`<del>plot</del><ins>term_heatmap</ins>(pred_creat_sodium<del>, &quot;heatmap&quot;, show_ci = TRUE</del>)` displays the adjusted prediction surface<ins>,</ins> and<ins> `term_heatmap(pred_creat_sodium</ins>, <del>below</del><ins>fill</ins> <del>it,</del><ins>= &quot;std.error&quot;)`</ins> a heatmap of prediction standard errors. The uncertainty heatmap shows where predictions are more or less precise across the creatinine–sodium grid; <del>it</del><ins>`fill</ins> <del>is</del><ins>=</ins> <del>not</del><ins>&quot;band_width&quot;`</ins> <del>a</del><ins>shows</ins> <del>confidence-interval-</del><ins>the </ins>width <del>map</del><ins>of the simultaneous band instead</ins>.
+
+```{r plot-surface}
+<del>plot</del><ins>term_heatmap(pred_creat_sodium)
+term_heatmap</ins>(pred_creat_sodium, <del>&quot;heatmap&quot;, show_ci</del><ins>fill</ins> = <del>TRUE</del><ins>&quot;std.error&quot;</ins>)
+```
+
+## Figure 2 — Original-coordinate heatmap with parameterized curves
+
+<del>The</del><ins>`term_heatmap(...,</ins> <del>package&#x27;s</del><ins>layers</ins> <ins>= )</ins>`<del>ggeffects_layer` plot method</del> displays the original age–creatinine heatmap<del>,</del> <del>its standard-error heatmap, and</del><ins>with</ins> the parameterized index trajectories overlaid<ins>, here also on its standard-error heatmap</ins>. These are deterministic transformations, not additional fitted models or confidence regions.
+
+```{r plot-overlays}
+<del>plot</del><ins>term_heatmap</ins>(<ins>pred_age_creat, layers = layer_index)
+term_heatmap(pred_age_creat, layers = </ins>layer_index, <del>show_base_ci</del><ins>fill</ins> = <del>TRUE, show_layer_ci = TRUE</del><ins>&quot;std.error&quot;</ins>)
+```
+
+## Figure 3 — Predictions in parameterized coordinates
+
+<del>The package&#x27;s </del>`<del>plot.ggeffects</del><ins>term_curves</ins>()`<del> method</del> displays the parameterized predictions along the selected index trajectories. These predictions use the adjustment profile from the original prediction surface.
+
+```{r plot-parameterized}
+<del>plot</del><ins>term_curves</ins>(layer_index<del>[[2]]</del>)
+```
+
+## Figure 4 — Pointwise versus simultaneous confidence intervals
+
+Here the focal coordinates are serum creatinine and three fixed ages. <del>`ci_method</del><ins>The</ins> <del>=</del><ins>intervals</ins> <del>&quot;coefficient&quot;`</del><ins>use</ins> <del>uses</del><ins>the</ins> uncertainty in the fitted regression coefficients<del> to calculate intervals</del> on the prediction grid. Both confidence-interval plots use the same prediction object.
+
+```{r predict-for-scb}
+pred_curves &lt;- <del>ggpredict</del><ins>term_predictions</ins>(
+  model,
+  terms = c(&quot;serum_creatinine<del> [0.8:3.5 by=0.1]</del>&quot;, &quot;age<ins>&quot;),
+  values</ins> <del>[</del><ins>= list(serum_creatinine = seq(0.8, 3.5, by = 0.1), age = c(</ins>50, 65, 80<del>]&quot;</del>)<del>,
+  ci_method = &quot;coefficient&quot;</del><ins>)</ins>
+)
+```
+
+`<del>plot</del><ins>term_curves</ins>(..., <del>use_scb</del><ins>band</ins> = <del>FALSE</del><ins>&quot;pointwise&quot;</ins>)` displays pointwise confidence intervals, which apply separately at each prediction point. `<del>plot</del><ins>term_curves</ins>(..., <del>use_scb</del><ins>band</ins> = <del>TRUE</del><ins>&quot;simultaneous&quot;</ins>)` displays simultaneous confidence bands calibrated over the generated prediction grid. Simultaneous bands are generally wider because they account for the joint collection of predictions.
+
+```{r plot-pointwise, fig.cap=&quot;Pointwise confidence intervals for LVEF predictions by creatinine and age.&quot;}
+<del>plot</del><ins>term_curves</ins>(pred_curves, <del>use_scb</del><ins>band</ins> = <del>FALSE</del><ins>&quot;pointwise&quot;</ins>)
+```
+
+```{r plot-simultaneous, fig.cap=&quot;Simultaneous confidence bands over the same creatinine-by-age grid.&quot;}
+<del>plot</del><ins>term_curves</ins>(pred_curves, <del>use_scb</del><ins>band</ins> = <del>TRUE</del><ins>&quot;simultaneous&quot;</ins>)
+```
+
+## Figure 5 — Simultaneous comparison with a reference function
+
+`test_simultaneous_predictions()` compares the predicted function with a supplied reference function `f` over the focal grid. The reference below is a fixed linear surface chosen to illustrate the interface. The test concerns equality to this particular surface, not the composite hypothesis that the association is linear with unspecified coefficients.
+
+```{r test-reference}
+f0 &lt;- function(serum_creatinine, serum_sodium) {
+  40 - 3 * (serum_creatinine - 1) + 0.2 * (serum_sodium - 137)
+}
+
+sim_test &lt;- test_simultaneous_predictions(pred_creat_sodium, f = f0)
+plot(sim_test)
+```
+
+# Part IV — Limitations of plotting, inference, and parameterization
+
+## Plotting and dimensionality
+
+- **Heatmaps show only two continuous focal variables at a time.** They cannot display the full predictor space of a higher-dimensional model. Other predictors are <del>adjusted</del><ins>held</ins> <del>or conditioned on</del><ins>constant</ins>. A `<del>ggeffects_layer</del><ins>term_layer()</ins>` also requires a base surface with two continuous focal variables; its parameterizations map back to those primary variables and use at most two new coordinates. Layers therefore support curves or families of curves on that surface, not arbitrary high-dimensional overlays.
+- **Heatmaps <del>omit</del><ins>do</ins> <del>raw-data</del><ins>not</ins> <del>points and</del><ins>show</ins> residuals.** <del>Kernel</del><ins>Raw-data points (`show_data = TRUE`) and kernel</ins>-density shading <del>can</del><ins>(`show_support = TRUE`)</ins> indicate regions with sparse predictor support<del> when raw data is available</del>, but <del>it</del><ins>they</ins> <del>does</del><ins>do</ins> not exclude those regions or prevent extrapolation.
+- **Heatmap uncertainty <del>is</del><ins>can be</ins> displayed as a standard-error surface<del>,</del> <del>not</del><ins>or</ins> as <del>confidence-interval</del><ins>the</ins> width<del>.</del><ins> of the simultaneous band</ins>** <del>Composing</del><ins>(`fill</ins> <del>additional</del><ins>=</ins> <del>heatmap</del><ins>&quot;std.error&quot;`</ins> <del>panels depends on the optional</del><ins>or</ins> `<del>see</del><ins>fill = &quot;band_width&quot;</ins>`<del> package</del><ins>)</ins>.
+
+## Simultaneous inference and marginalization
+
+- **Inference applies to the generated grid and its adjustment profile.** Non-focal predictors have already been <del>marginalized or </del>fixed at selected values. The simultaneous bands and reference-function test therefore concern predictions at those<del> marginal or</del> conditional values; they do not establish simultaneous coverage over omitted predictors or their interactions. Changing the adjustment profile can change the function being assessed.
+- **The critical value is estimated using a finite grid.** The grid approximates the supremum over the prediction domain; it is a numerical method for estimating the simultaneous critical value, not a restriction of the intended band to sample or grid points. Coverage is intended to apply between grid points as well, with accuracy depending on how well the generated grid represents the domain.
+- **The <del>current </del>scope <del>is</del><ins>can</ins> <del>global</del><ins>be chosen</ins>.** <del>The</del><ins>`ci_scope</ins> <del>implementation</del><ins>=</ins> <del>currently</del><ins>&quot;global&quot;`</ins> <del>forces</del><ins>(default)</ins> <del>global</del><ins>makes</ins> <del>scope,</del><ins>the</ins> <del>so</del><ins>band simultaneous over the whole grid; `&quot;faceted&quot;` and `&quot;curve&quot;` give</ins> separate simultaneous adjustments by facet <del>are</del><ins>or</ins> <del>not</del><ins>by</ins> <del>available through this path</del><ins>curve</ins>.
+- **The reference-function test is not a general shape or linearity test.** It compares predictions with one supplied function. For non-standard models and parameterizations, defining the relevant reference function in the original predictor coordinates may not be straightforward; it must return one numeric value at each evaluation point and use argument names matching <ins>variables of </ins>the <del>original model predictors</del><ins>predictions</ins>. Standard hypotheses such as linearity also generally require fitting an additional constrained or reference model, with its estimation uncertainty accounted for, rather than simply supplying one fixed function.<del> Ensure the input predictions were created with a simultaneous confidence method.</del>
+- **<del>The</del><ins>Two</ins> <del>simultaneous</del><ins>ways</ins> <del>method</del><ins>to</ins> <del>depends</del><ins>compute</ins> <del>on</del><ins>the</ins> <del>model support</del><ins>uncertainty</ins>.** <del>Coefficient-based</del><ins>By</ins> <del>inference</del><ins>default</ins> <del>is</del><ins>(`ci_method</ins> <del>available</del><ins>=</ins> <del>only</del><ins>&quot;analytic&quot;`)</ins> <del>for</del><ins>it</ins> <del>supported</del><ins>comes from the coefficients&#x27; covariance matrix; `ci_method = &quot;bootstrap&quot;` refits the</ins> model <del>types;</del><ins>on</ins> <del>other</del><ins>resampled</ins> <del>cases</del><ins>data</ins> <del>use bootstrap-based uncertainty</del><ins>instead</ins>, which <del>may be</del><ins>is</ins> slower<del> and depends on successful bootstrap predictions</del>.
+
+The inferential scope is determined by both the prediction grid and its adjustment rules. Changing the grid or parameterization does not require refitting the model, but it changes the function and domain represented by the plots and tests. In this demonstration, Figure 4 concerns the creatinine–age surface at the selected adjustment values, while Figure 5 tests a fixed reference function against the creatinine–sodium predictions at their selected adjustment values.
+
+## Parameterization and default prediction domains
+
+- **Parameterization inputs are treated as numeric.** This makes categorical transformations unsuitable and can remove the meaning of factor levels. The implementation does not generally verify that transformed predictors are finite or scientifically plausible.
+- **Unknown parameterization names <del>can</del><ins>are</ins> <del>be</del><ins>an</ins> <del>silently ignored</del><ins>error</ins>.** Only names matching model predictors <ins>(or variables of an existing parameterization) </ins>are <del>retained</del><ins>accepted</ins>, so a typo <del>can</del><ins>stops</ins> <del>leave</del><ins>with a message rather than leaving</ins> the model unparameterized<del> rather than produce an error</del>.
+- **Default parameter-coordinate bounds are heuristic, centered rectangular boxes.** The range-generation code searches symmetric boxes around zero, shrinking them until their sampled and optimized image fits within the observed range of the original predictor, then expanding dimensions individually. This follows the zero-centered parameter-coordinate convention.
+- **The bounding-box heuristic may not suit compact or irregular parameterizations.** For bounded, periodic, many-to-one, or non-rectangular mappings, a single centered rectangle may omit valid regions or include combinations that map outside the original predictor&#x27;s observed range. Its image bounds are estimated using random samples and local optimization, which can miss extrema. If the search cannot find a suitable box, it warns and returns the last box, so downstream grids can still contain out-of-range or invalid transformed values.<ins> Giving the ranges with `values` avoids the search.</ins>
+</pre></section>
+</body></html>

@@ -1,0 +1,203 @@
+---
+title: "Parameterized models"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Parameterized models}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r set-options, echo = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  dev = "png",
+  fig.width = 7,
+  fig.height = 3.5,
+  message = FALSE,
+  warning = FALSE
+)
+options(width = 800)
+
+library(termeffects)
+library(rms)
+library(splines)
+set.seed(1)
+```
+
+
+# parameterized_model objects
+
+## Overview
+A `parameterized_model` is a data structure consiting of a tuple of a fitted regression
+model, and a collection of maps that parameterize the continuous predictive variables
+of the model. Moreover, there exists some auxiliary tracked iformation, ie. new parameters,
+and a parameterization history.
+
+The primary objective of parameterized models is the visualization of higher order data in terms of
+lower order parameteric families via marginalization. As an example, consider the fitted regression model:
+$$
+y = f(x_1, \ldots, x_n; \beta)\quad\text{ with parameterizations}\quad x_i = h_i(z_1, \ldots, z_m)
+$$
+Viewing the regression model as a function, notice that the data of the parameterized model determines
+the data of a model by pulling back by the $h_i$. We do note however, that the observed data for which
+$f_\beta = f(-; \beta)$ was fitted may not be contained in the image of $h = (h_i)_i$, and so the parameterized model
+$f_\beta \circ h$ is almost never determined by the initial observations. For this reason, this parameterization
+is primarily a tool for developing intuitions and visualizations.
+
+Indeed, in sufficiently nice scenarios (for instance if $h$ is smooth), the rank of the parameterized
+model (viewed as the composition $f_\beta \circ h$) is less than or equal to the rank of $f_\beta$.
+Particularly, by fixing arguments in $z$ (to obtain planes), we obtain more varied marginalizations
+of $f_\beta$.
+
+## Simple Example
+
+Suppose we have some regression model $y \sim f_\beta(\operatorname{weight}, \operatorname{height}, \ldots)$. With parameterizations $(t, c, \ldots) \mapsto (ct^2, t, \ldots) = (\operatorname{weight}(t), \operatorname{height}(t), \ldots)$ (where the other function are the identity), we obtain co-level sets in c and $\ldots$ of subsets with fixed BMI,
+and co-level sets in $t$ and $\ldots$ of subsets with fixed height, but variable weight and BMI.
+
+```{r}
+
+w <- rnorm(500, mean = 70, sd = 4)
+h <- rnorm(500, mean = 170, sd = 10)
+
+a <- rnorm(500)
+
+y <- a + w/h^2 + h + w + w^2 * h + rnorm(500)
+
+
+# model example
+model <- lm(y ~ splines::ns(w,3) + splines::ns(h, 3) + splines::ns(w,3) %ia% splines::ns(h,4) + a)
+
+# parameterize model
+pmodel1 <- parameterize(model, parameterizations = list(w = \(t,c) c*t^2, h = \(t) t))
+
+# parameterized model attributes
+print(pmodel1, show_history = TRUE)
+
+# underlying model
+original_model(pmodel1)
+
+# model parameterizations
+parameterizations(pmodel1)
+
+# new model variables
+parameter_variables(pmodel1)
+```
+
+Furthermore, for a data grid `data = data.frame(t = ..., c = ..., a = ...)`, with `predict(pmodel, newdata = data)`, we obtain predictions from the mechanism:
+
+```{r}
+# predict.parameterized_model <- function(object, newdata, ...) {
+#  ...
+#
+#  newdata <- parameterize_data(object, newdata)
+#
+#  predict(object$model, newdata = newdata, ...)
+#}
+
+# t is height in cm, so c is BMI in kg/cm^2 (BMI 18-22 kg/m^2 = 0.0018-0.0022)
+df <- as.data.frame(
+    expand.grid(t = 150:200, c = c(18, 20, 22) / 1e4, a = 0)
+  )
+
+head(parameterize_data(pmodel1, newdata = df))
+
+head(predict(pmodel1, newdata = df))
+
+```
+where `parameterize_data` evaluates the parameterization on the new data.
+
+## term_predictions with parameterized_models.
+
+`term_predictions()` and `term_grid()` are implemented for parameterized_model objects. As
+with fitted regression models, the user specifies their primary terms of interest `term_predictions(model, terms, ...)` together
+with auxiliary options. These terms are variables of the parameterizations, or those untransformed variables:
+```
+term_predictions(pmodel, terms = c("t", "c"), values = list(c = c(1, 2, 3)), ...)
+```
+For standard regression models, for unconstrained terms--such as "t"--bounds, and regularly spaced sample points are determined by the data (the extrema of the observations). As discussed above, such a method does not extend to parameterized_models. Rather, for all new parameter variables, the largest box (centred at the origin in the parameter space) whose image stays within the extrema of the observations is computed. Where this is not possible (consider a parameterized point or circle), a warning asks for the range to be given with `values`.
+
+## term_layer objects
+Given some base `term_predictions` object (an adjusted prediction grid over two continuous focal terms, as drawn by `term_heatmap()`), a `term_layer` object holds predictions along curves through it, where the underlying model is a 'parameterization' of the base object's underlying model subject to some restrictions:
+ - the held-constant variables are all equal to those of the base
+ - only the two primary variables were parameterized
+ - the total number of new parameters is at most two
+In particular, each layer either induces a 1-parametric curve or 2-parameteric curve (which induces a set of 1-parametric curves) in the domain of the base model.
+
+Ex:
+``` {r}
+x <- rnorm(500)
+z <- rnorm(500)
+
+y <- x - z + rnorm(500, sd = 2)
+
+
+model <- lm(y ~ x + z)
+pmodel <- parameterize(model, list(x = "t^3 + s", z = "s - t"))
+
+pout <- term_predictions(pmodel, terms = c("t", "s"))
+
+ppout1 <- term_layer(pout,
+                     parameterization = list(t = "sin(w)",
+                                             s = "cos(w)"),
+                     terms = "w",
+                     values = list(w = seq(0, 2 * pi, length.out = 60)))
+
+ppout2 <- term_layer(pout,
+                     parameterization = list(t = "r * sin(w)",
+                                             s = "r * cos(w)"),
+                     terms = c("w", "r"),
+                     values = list(w = seq(0, 2 * pi, length.out = 60), r = c(0.5, 1, 1.5)))
+
+
+ppout1
+
+ppout2
+
+term_heatmap(pout, layers = ppout1, show_support = TRUE, support_prob = 0.975)
+
+term_curves(ppout2)
+
+```
+
+
+# Plotting
+termeffects provides _two_ plot types for surfaces: heatmaps, and heatmaps with
+overlays of 1-parametric curves. Additionally, as a substitute for plotting observed data, it estimates the density of the
+initial observations using kernel smoothing, and fades the regions where it is low.
+
+Heatmaps are drawn on regular grids, which `term_predictions()` generates.
+
+
+
+
+```{r}
+
+w <- rnorm(500, mean = 70, sd = 4)
+h <- rnorm(500, mean = 170, sd = 10)
+
+a <- rnorm(500)
+
+y <- a + w/h^2 + h + w + w^2 * h + rnorm(500)
+
+
+# model example
+model <- lm(y ~ splines::ns(w,3) + splines::ns(h, 3) + splines::ns(w,3) %ia% splines::ns(h,4) + a)
+
+# parameterize model
+pmodel1 <- parameterize(model, parameterizations = list(w = \(t,c) c*t^2, h = \(t) t))
+
+pout <- term_predictions(pmodel1, terms = c("c", "t"),
+                         values = list(c = seq(0.0020, 0.0030, length.out = 30),
+                                       t = seq(150, 190, length.out = 30)),
+                         at = list(a = 1))
+
+term_heatmap(pout, show_support = TRUE)
+
+```
+
+
+
+# Simultaneous confidence bands
+
+Every `term_predictions()` result also contains a simultaneous confidence band (`band.low`, `band.high`), which covers the predictions at all grid points at once. For parameterized models it is simultaneous over the grid of the new variables. The vignette "termeffects: introduction" explains how the band is computed and how to test a reference function against it.
