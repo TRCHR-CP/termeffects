@@ -73,8 +73,9 @@ term_heatmap <- function(x, contours = TRUE, cuts = NULL, show_data = FALSE,
     ggplot2::geom_raster(ggplot2::aes(fill = .data$.fill), interpolate = TRUE) +
     ggplot2::scale_x_continuous(expand = c(0, 0)) +
     ggplot2::scale_y_continuous(expand = c(0, 0))
+  log_fill <- fill == "estimate" && isTRUE(attr(x, "log_scale"))
   p <- p + if (fill == "estimate") {
-    ggplot2::scale_fill_viridis_c(name = .wrap(fill_name))
+    ggplot2::scale_fill_viridis_c(name = .wrap(fill_name), transform = if (log_fill) "log10" else "identity")
   } else {
     # uncertainty: one hue, light (precise) to dark (uncertain)
     ggplot2::scale_fill_gradient(name = .wrap(fill_name), low = "#F7FBFF", high = "#08306B")
@@ -82,7 +83,7 @@ term_heatmap <- function(x, contours = TRUE, cuts = NULL, show_data = FALSE,
 
   if (!isFALSE(contours)) {
     bins <- if (is.numeric(contours)) contours else 8
-    p <- p + ggplot2::geom_contour(ggplot2::aes(z = .data$.fill),
+    p <- p + ggplot2::geom_contour(ggplot2::aes(z = if (log_fill) log(.data$.fill) else .data$.fill),
                                    bins = bins, colour = "white", linewidth = 0.3, alpha = 0.8)
   }
 
@@ -288,6 +289,10 @@ term_curves <- function(x, band = c("simultaneous", "pointwise", "both", "none")
     p <- p + .curve_colours(group, nlevels(x[[group]]))
   } else {
     p <- p + ggplot2::aes(colour = NULL, fill = NULL)
+  }
+  if (isTRUE(attr(x, "log_scale"))) {
+    p <- p + ggplot2::geom_hline(yintercept = 1, linetype = "dotted", colour = "grey40") +
+      ggplot2::scale_y_log10(labels = function(b) format(b, scientific = FALSE, drop0trailing = TRUE, trim = TRUE))
   }
   p + ggplot2::geom_line(linewidth = 0.8, arrow = arrow) +
     ggplot2::labs(x = vx, y = attr(x, "outcome_label"), subtitle = .held_subtitle(x),

@@ -11,6 +11,8 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
+> **About this vignette.** Written by Lukas Bolsinger for p-ggeffects (original file `p_ggeffects_heart_failure.Rmd`) and ported to termeffects by Brigitte Mueller. His text is kept; the code now uses the termeffects functions (`ggpredict()` became `term_predictions()`, `plot(..., "heatmap")` became `term_heatmap()`, layers became `term_layer()`), and held covariates are at their median or most common value. The data now come with termeffects instead of dlookr, and the standard-error heatmap is a separate plot instead of a stacked panel. Every change is marked in `validation/output/vignette_track_changes.html` (struck through: removed; underlined: added), or run `git diff 2de18bc -- vignettes/heart_failure_renal_index.Rmd`.
+
 # Introduction
 
 This example uses the `heartfailure` data (distributed with termeffects, originally from `dlookr`) to demonstrate how **termeffects separates model fitting, prediction, parameterization, and presentation**. The response is left ventricular ejection fraction (LVEF); the analysis is illustrative and associative, not causal.

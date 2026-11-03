@@ -7,6 +7,8 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
+> **About this vignette.** Written by Lukas Bolsinger for p-ggeffects (original file `introduction_p_ggeffects.Rmd`) and ported to termeffects by Brigitte Mueller. His text is kept; the code now uses the termeffects functions (`ggpredict()` became `term_predictions()`, `plot(..., "heatmap")` became `term_heatmap()`, layers became `term_layer()`), and held covariates are at their median or most common value. Also changed: the description of the methods and of the differences from ggeffects, and one example that called `test_predictions()` (which failed on parameterized models) is removed. Every change is marked in `validation/output/vignette_track_changes.html` (struck through: removed; underlined: added), or run `git diff 2de18bc -- vignettes/introduction.Rmd`.
+
 ```{r set-options, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,

@@ -20,7 +20,7 @@
 <p class="legend">The student's text (git commit 2de18bc) compared with the current
 termeffects vignettes. <del>Struck through</del>: removed. <ins>Underlined</ins>: added.
 Everything else is unchanged.</p>
-<ul><li><a href="#introduction-Rmd">introduction.Rmd</a> (student: introduction_p_ggeffects.Rmd): 519 words deleted, 413 inserted</li><li><a href="#parameterized_models-Rmd">parameterized_models.Rmd</a> (student: introduction_parameterized_model.Rmd): 474 words deleted, 335 inserted</li><li><a href="#heart_failure_egfr-Rmd">heart_failure_egfr.Rmd</a> (student: p_ggeffects_demonstration.Rmd): 1128 words deleted, 752 inserted</li><li><a href="#heart_failure_renal_index-Rmd">heart_failure_renal_index.Rmd</a> (student: p_ggeffects_heart_failure.Rmd): 600 words deleted, 474 inserted</li></ul>
+<ul><li><a href="#introduction-Rmd">introduction.Rmd</a> (student: introduction_p_ggeffects.Rmd): 519 words deleted, 587 inserted</li><li><a href="#parameterized_models-Rmd">parameterized_models.Rmd</a> (student: introduction_parameterized_model.Rmd): 475 words deleted, 502 inserted</li><li><a href="#heart_failure_egfr-Rmd">heart_failure_egfr.Rmd</a> (student: p_ggeffects_demonstration.Rmd): 1128 words deleted, 960 inserted</li><li><a href="#heart_failure_renal_index-Rmd">heart_failure_renal_index.Rmd</a> (student: p_ggeffects_heart_failure.Rmd): 600 words deleted, 639 inserted</li></ul>
 <section id="introduction-Rmd"><h2>introduction.Rmd</h2><p class="meta">Student's original: vignettes/introduction_p_ggeffects.Rmd in p-ggeffects</p><pre>---
 title: &quot;<del>p-ggeffects</del><ins>termeffects</ins>: <del>additional features</del><ins>introduction</ins>&quot;
 output: rmarkdown::html_vignette
@@ -28,7 +28,9 @@ vignette: &gt;
   %\VignetteIndexEntry{<del>p-ggeffects</del><ins>termeffects</ins>: <del>additional features</del><ins>introduction</ins>}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
----
+---<ins>
+
+&gt; **About this vignette.** Written by Lukas Bolsinger for p-ggeffects (original file `introduction_p_ggeffects.Rmd`) and ported to termeffects by Brigitte Mueller. His text is kept; the code now uses the termeffects functions (`ggpredict()` became `term_predictions()`, `plot(..., &quot;heatmap&quot;)` became `term_heatmap()`, layers became `term_layer()`), and held covariates are at their median or most common value. Also changed: the description of the methods and of the differences from ggeffects, and one example that called `test_predictions()` (which failed on parameterized models) is removed. Every change is marked in `validation/output/vignette_track_changes.html` (struck through: removed; underlined: added), or run `git diff 2de18bc -- vignettes/introduction.Rmd`.</ins>
 
 ```{r set-options, include = FALSE}
 knitr::opts_chunk$set(
@@ -40,9 +42,9 @@ knitr::opts_chunk$set(
   message = FALSE,
   warning = FALSE
 )
-options(width = 800)
+options(width = 800)<del>
 
-<del>pkgs &lt;- c(
+pkgs &lt;- c(
   &quot;ggplot2&quot;,
   &quot;splines&quot;,
   &quot;gridExtra&quot;,
@@ -57,9 +59,9 @@ options(width = 800)
 
 # if (!all(vapply(pkgs, requireNamespace, quietly = TRUE, FUN.VALUE = logical(1L)))) {
 #   knitr::opts_chunk$set(eval = TRUE)
-# }
+# }</del>
 
-</del>knitr::opts_chunk$set(
+knitr::opts_chunk$set(
   eval = TRUE,
   collapse = TRUE,
   include = TRUE,
@@ -392,7 +394,9 @@ vignette: &gt;
   %\VignetteIndexEntry{<del>p-ggeffects:</del><ins>Parameterized</ins> <del>additional features</del><ins>models</ins>}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
----
+---<ins>
+
+&gt; **About this vignette.** Written by Lukas Bolsinger for p-ggeffects (original file `introduction_parameterized_model.Rmd`) and ported to termeffects by Brigitte Mueller. His text is kept; the code now uses the termeffects functions (`ggpredict()` became `term_predictions()`, `plot(..., &quot;heatmap&quot;)` became `term_heatmap()`, layers became `term_layer()`), and held covariates are at their median or most common value. Also corrected: a typo (`pmodel`) that stopped two chunks from running, and simulated weights with mean 7000 instead of 70. Every change is marked in `validation/output/vignette_track_changes.html` (struck through: removed; underlined: added), or run `git diff 2de18bc -- vignettes/parameterized_models.Rmd`.</ins>
 
 ```{r set-options, echo = FALSE}
 knitr::opts_chunk$set(
@@ -464,7 +468,7 @@ library</del><ins>set.seed</ins>(<del>htmltools)
 ## Overview
 A `parameterized_model` is a data structure consiting of a tuple of a fitted regression
 model, and a collection of maps that parameterize the continuous predictive variables
-of the model. Moreover, there exists some auxiliary tracked iformation, ie. new parameters,
+of the model. Moreover, there exists some auxiliary tracked <del>iformation</del><ins>information</ins>, ie. new parameters,
 and a parameterization history.
 
 The primary objective of parameterized models is the visualization of higher order data in terms of<del> </del>
@@ -657,7 +661,9 @@ output:
   %\VignetteIndexEntry{termeffects feature demonstration: Cardiac systolic function and renal health}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}</ins>
----
+---<ins>
+
+&gt; **About this vignette.** Written by Lukas Bolsinger for p-ggeffects (original file `p_ggeffects_demonstration.Rmd`) and ported to termeffects by Brigitte Mueller. His text is kept; the code now uses the termeffects functions (`ggpredict()` became `term_predictions()`, `plot(..., &quot;heatmap&quot;)` became `term_heatmap()`, layers became `term_layer()`), and held covariates are at their median or most common value. Also corrected: the eGFR formula is now the 2021 CKD-EPI equation (it said so before, but used a made-up linear formula); Figure 3 now plots eGFR (it plotted creatinine); the constant-eGFR curves in Figure 2 are now a `term_layer()` instead of hand-drawn contours; outdated limitations are updated. Every change is marked in `validation/output/vignette_track_changes.html` (struck through: removed; underlined: added), or run `git diff 2de18bc -- vignettes/heart_failure_egfr.Rmd`.</ins>
 
 # Introduction
 
@@ -1037,12 +1043,14 @@ subtitle: &quot;Heart-failure data — prediction, parameterization, and simulta
 output:
   <del>html_document</del><ins>rmarkdown::html_vignette</ins>:
     toc: true
-    toc_depth: 2<ins>
-vignette: &gt;
+    toc_depth: 2
+<ins>vignette: &gt;
   %\VignetteIndexEntry{termeffects: nonlinear predictions and parameterizations}
   %\VignetteEngine{knitr::rmarkdown}
-  %\VignetteEncoding{UTF-8}</ins>
----
+  %\VignetteEncoding{UTF-8}
+</ins>---<ins>
+
+&gt; **About this vignette.** Written by Lukas Bolsinger for p-ggeffects (original file `p_ggeffects_heart_failure.Rmd`) and ported to termeffects by Brigitte Mueller. His text is kept; the code now uses the termeffects functions (`ggpredict()` became `term_predictions()`, `plot(..., &quot;heatmap&quot;)` became `term_heatmap()`, layers became `term_layer()`), and held covariates are at their median or most common value. The data now come with termeffects instead of dlookr, and the standard-error heatmap is a separate plot instead of a stacked panel. Every change is marked in `validation/output/vignette_track_changes.html` (struck through: removed; underlined: added), or run `git diff 2de18bc -- vignettes/heart_failure_renal_index.Rmd`.</ins>
 
 # Introduction
 

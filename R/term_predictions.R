@@ -168,6 +168,8 @@ term_predictions <- function(model,
   attr(out, "held") <- attr(newdata, "held")
   attr(out, "held_rule") <- attr(newdata, "held_rule")
   attr(out, "outcome_label") <- .outcome_label(model, scale)
+  # ratios are shown on a log axis, so that e.g. 0.5 and 2 are equally far from 1
+  attr(out, "log_scale") <- inherits(model, "coxph") && scale == "response"
   attr(out, "model") <- input
   attr(out, "data") <- tryCatch(.model_data(model, data), error = function(e) NULL)
   class(out) <- c("term_predictions", "data.frame")

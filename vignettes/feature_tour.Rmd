@@ -197,7 +197,13 @@ attr(cuts_boot, "critical_value")
 term_curves(cuts_boot)
 ```
 
-**Check:** the bands look similar to the analytic ones in section 5.
+**Check:** in the middle, where most patients are, the bands look like the
+analytic ones in section 5. Above creatinine 3 (16 patients) and below 0.7 (5
+patients), the bootstrap bands are wider. The analytic band assumes the model
+is right and the spread of LVEF is the same everywhere; the bootstrap refits
+the model on resampled patients, and where only a few patients determine the
+curve, the refits differ a lot depending on which of them are drawn. Where the
+two disagree, trust the curves less.
 
 For `orm` models there are three methods (see the how-to vignette for the
 simulation comparing them):
@@ -224,6 +230,14 @@ too narrow, which is why they are not the default.)
 
 ## 7. Other model types
 
+### Survival: a Cox model
+
+A Cox model (`survival::coxph`) describes how the risk of death changes with
+the predictors. termeffects shows the **hazard ratio** against an average
+patient: 2 means twice the hazard of death at any time, 0.5 half of it. Ratios
+are plotted on a log axis, so that 2 and 0.5 are equally far from 1 (the dotted
+line, no difference).
+
 ```{r other-models}
 library(survival)
 hf$died <- as.numeric(hf$death_event == "Yes")
@@ -232,12 +246,26 @@ term_curves(term_predictions(cox, c("creatinine", "sodium"),
                              values = list(creatinine = cr, sodium = c(130, 137, 142))))
 ```
 
+**Check:** the y-axis is logarithmic (1, 10, 100, ...). The bands are very wide
+below creatinine 0.7, where there are only 5 patients.
+
+### Smooth surfaces: a generalized additive model
+
+A generalized additive model (`mgcv::gam`) does not need knots or degrees of
+freedom chosen in advance. Each smooth term is a spline with many basis
+functions, and a penalty for wiggliness is estimated from the data, so the
+curve is only as flexible as the data support. `s(age)` is a smooth curve in
+age. `te(creatinine, sodium)` is a smooth *surface* over both variables
+together (a tensor-product spline), the GAM way of writing a non-linear
+interaction. GAMs suit exploring a surface; spline models with a fixed number
+of knots, as above, are easier to report.
+
 ```{r gam, eval = requireNamespace("mgcv", quietly = TRUE)}
 gam_fit <- mgcv::gam(ejection_fraction ~ te(creatinine, sodium) + s(age) + sex, data = hf)
 term_heatmap(term_predictions(gam_fit, c("creatinine", "sodium"), values = list(creatinine = cr, sodium = na)))
 ```
 
-**Check:** the Cox plot shows hazard ratios against an average patient. Mixed
+**Check:** a smoother surface than the spline model in section 4. Mixed
 models (`lme4`) work the same way; the `heartfailure` data have no clusters, so
 they are covered by the automatic tests only.
 

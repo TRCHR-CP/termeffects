@@ -7,6 +7,8 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
+> **About this vignette.** Written by Lukas Bolsinger for p-ggeffects (original file `introduction_parameterized_model.Rmd`) and ported to termeffects by Brigitte Mueller. His text is kept; the code now uses the termeffects functions (`ggpredict()` became `term_predictions()`, `plot(..., "heatmap")` became `term_heatmap()`, layers became `term_layer()`), and held covariates are at their median or most common value. Also corrected: a typo (`pmodel`) that stopped two chunks from running, and simulated weights with mean 7000 instead of 70. Every change is marked in `validation/output/vignette_track_changes.html` (struck through: removed; underlined: added), or run `git diff 2de18bc -- vignettes/parameterized_models.Rmd`.
+
 ```{r set-options, echo = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
@@ -31,7 +33,7 @@ set.seed(1)
 ## Overview
 A `parameterized_model` is a data structure consiting of a tuple of a fitted regression
 model, and a collection of maps that parameterize the continuous predictive variables
-of the model. Moreover, there exists some auxiliary tracked iformation, ie. new parameters,
+of the model. Moreover, there exists some auxiliary tracked information, ie. new parameters,
 and a parameterization history.
 
 The primary objective of parameterized models is the visualization of higher order data in terms of

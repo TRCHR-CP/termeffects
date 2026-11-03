@@ -5,6 +5,40 @@ user-facing summary; this log also covers decisions, validation and tooling.
 
 ---
 
+## 2026-11-03 — Review of the feature tour (Brigitte's comments)
+
+* **Cox curves unreadable.** The band of the hazard ratio reached 1000 at
+  creatinine 0.5 (5 patients below 0.7) and squeezed everything else to the
+  bottom. Hazard ratios are now drawn on a log axis (`term_curves()`) or log
+  colour scale (`term_heatmap()`), with a dotted line at 1. New attribute
+  `log_scale` of `term_predictions()`; test added.
+* **Bootstrap vs analytic band shape** (tour, section 6). Both widen above
+  creatinine 3, the bootstrap more (sodium 137: band width 28 vs 50 at
+  creatinine 4, 9 vs 12 at 1.5). Only 16 patients have creatinine above 3, so
+  bootstrap refits depend on which of them are drawn; the analytic band
+  assumes the model and constant variance. Explained in the tour.
+* **GAM explained** in the tour before its example; Cox section introduced.
+* **The student's vignettes** now start with a note: written by Lukas
+  Bolsinger, original file name, what was changed, where to see the changes.
+  Track-changes page regenerated.
+* `.Rbuildignore`: Brigitte's file `# Code for testing the package by hand.R`
+  (its name is not portable, so R CMD check warned).
+
+Answers recorded for the questions asked:
+* The faded region (`show_support`) is the student's idea
+  (`show_kernel_density`, `threshold_prob = 0.975`, his Gaussian kernel with
+  bandwidth matrix n^(-2/(d+4)) times the covariance). Changed: the density is
+  of the two plotted variables only (his used all predictors, evaluated at the
+  held values), and the threshold is the 2.5% quantile of the density at the
+  observations, the usual estimate of a highest-density region. His threshold
+  weighted the densities at the observations by the density again, which
+  makes the region smaller than stated.
+* Arrows on curves (`show_direction`) and layers are the student's; the
+  "worsening" paths in the tour are Claude's example. His examples were
+  abstract curves (t = w^2, s = w^3) and constant-eGFR curves.
+
+---
+
 ## 2026-10-27 — Feature tour vignette for testing
 
 New vignette `vignettes/feature_tour.Rmd` ("A tour of every feature"): uses

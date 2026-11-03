@@ -10,3 +10,4 @@
 ^Meta$
 ^data-raw$
 ^\.claude$
+^# Code for testing the package by hand\.R$

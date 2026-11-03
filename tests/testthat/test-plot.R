@@ -55,3 +55,13 @@ test_that("layers with different variables can be drawn together", {
   p <- term_heatmap(surface, layers = list(one, family))
   expect_length(unique(ggplot2::layer_data(p, length(p$layers))$group), 3)
 })
+
+test_that("hazard ratios are shown on a log scale", {
+  skip_if_not_installed("survival")
+  cox <- survival::coxph(survival::Surv(time, status) ~ age + sex, data = survival::lung)
+  pred <- term_predictions(cox, c("age", "sex"), values = list(sex = 1:2), n = 10)
+  expect_true(attr(pred, "log_scale"))
+  expect_false(attr(term_predictions(cox, "age", n = 5, scale = "link"), "log_scale"))
+  p <- term_curves(pred)
+  expect_equal(p$scales$get_scales("y")$trans$name, "log-10")
+})

@@ -11,6 +11,8 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
+> **About this vignette.** Written by Lukas Bolsinger for p-ggeffects (original file `p_ggeffects_demonstration.Rmd`) and ported to termeffects by Brigitte Mueller. His text is kept; the code now uses the termeffects functions (`ggpredict()` became `term_predictions()`, `plot(..., "heatmap")` became `term_heatmap()`, layers became `term_layer()`), and held covariates are at their median or most common value. Also corrected: the eGFR formula is now the 2021 CKD-EPI equation (it said so before, but used a made-up linear formula); Figure 3 now plots eGFR (it plotted creatinine); the constant-eGFR curves in Figure 2 are now a `term_layer()` instead of hand-drawn contours; outdated limitations are updated. Every change is marked in `validation/output/vignette_track_changes.html` (struck through: removed; underlined: added), or run `git diff 2de18bc -- vignettes/heart_failure_egfr.Rmd`.
+
 # Introduction
 
 This case study demonstrates a workflow for **termeffects** in which fitting a regression model is deliberately separated from specifying prediction domains and drawing figures. We analyze the `heartfailure` dataset distributed with termeffects (originally from `dlookr`), treating **left ventricular ejection fraction (LVEF)** as a continuous outcome. We ask how its *adjusted association* with renal markers varies across creatinine, serum sodium, and age.
