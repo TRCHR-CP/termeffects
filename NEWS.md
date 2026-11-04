@@ -5,7 +5,10 @@
   common value (categorical), or at values you choose with `at`.
 * New `term_predictions()`: predictions over such a grid with pointwise
   confidence intervals and simultaneous confidence bands. Works for `lm`,
-  `glm`, `rms::orm`, `lme4::lmer`/`glmer`, `survival::coxph` and `mgcv::gam`.
+  `glm` (any family, with offsets; also brglm2 and `geepack::geeglm`),
+  `logistf`, `rms::orm`/`lrm`/`cph`/`ols`, `lme4::lmer`/`glmer`,
+  `nlme::lme`, `survival::coxph` (also stratified, and with time-dependent
+  covariates in (start, stop] format) and `mgcv::gam`.
   Intervals are analytic (default) or bootstrap (`ci_method = "bootstrap"`);
   for `orm` also the delta method with all intercepts (`ci_method = "delta"`).
   `ci_scope` makes the band simultaneous per facet or per curve.
@@ -22,5 +25,6 @@
   predictions.
 * New data set `heartfailure`.
 * Vignettes: "Seeing non-linear interactions: heatmaps and cuts" (how-to),
-  "A tour of every feature" (every function once, with what to check), and
+  "A tour of every feature" (every function once, with what to check),
+  "Supported model types, with examples", and
   the student's four vignettes ported to termeffects.

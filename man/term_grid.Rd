@@ -7,8 +7,8 @@
 term_grid(model, terms, values = NULL, at = NULL, n = 30, data = NULL)
 }
 \arguments{
-\item{model}{A fitted model (\code{lm}, \code{glm}, \code{rms::orm}, \code{lmerMod},
-\code{glmerMod}, \code{coxph}, or \code{mgcv::gam}) or a \link[=parameterize]{parameterized model}.}
+\item{model}{A fitted model (see "Supported models" in \code{\link[=term_predictions]{term_predictions()}})
+or a \link[=parameterize]{parameterized model}.}
 
 \item{terms}{Character vector with the names of the focal variables.}
 

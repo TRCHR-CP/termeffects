@@ -21,8 +21,8 @@ term_predictions(
 )
 }
 \arguments{
-\item{model}{A fitted model (\code{lm}, \code{glm}, \code{rms::orm}, \code{lmerMod},
-\code{glmerMod}, \code{coxph}, or \code{mgcv::gam}) or a \link[=parameterize]{parameterized model}.}
+\item{model}{A fitted model (see "Supported models" in \code{\link[=term_predictions]{term_predictions()}})
+or a \link[=parameterize]{parameterized model}.}
 
 \item{terms}{Character vector with the names of the focal variables.}
 
@@ -137,6 +137,42 @@ clipped to the observed outcome range.
 Cox models: the estimate is the hazard ratio (or log hazard ratio with
 \code{scale = "link"}) relative to a subject with average values of the
 model's design-matrix columns, matching \code{predict(type = "lp")}.
+}
+
+\section{Supported models}{
+\tabular{ll}{
+   Model \tab Estimate (\code{scale = "response"}) \cr
+   \code{lm()}, \code{rms::ols()} \tab predicted outcome \cr
+   \code{glm()} (any family), incl. bias-reduced fits with \code{method = brglm2::brglmFit} \tab outcome on the response scale, e.g. a probability \cr
+   \code{rms::lrm()} (binary outcome), \code{logistf::logistf()} (Firth) \tab probability \cr
+   \code{rms::orm()} \tab mean outcome \cr
+   \code{survival::coxph()}, \code{rms::cph()} \tab hazard ratio vs. an average subject \cr
+   \code{lme4::lmer()}, \code{lme4::glmer()}, \code{nlme::lme()} \tab population-level prediction (random effects at 0) \cr
+   \code{geepack::geeglm()} \tab population-averaged prediction \cr
+   \code{mgcv::gam()} \tab outcome on the response scale \cr
+}
+
+
+Notes:
+\itemize{
+\item \strong{Offsets} (\code{offset()} in the formula or an \verb{offset =} argument, for
+\code{lm}, \code{glm}, \code{geeglm}, \code{lme4} models): the offset's variables are held
+like other covariates (median by default), so a Poisson model with
+\code{offset(log(time))} predicts the count over the median follow-up; use
+\code{at = list(time = 365)} for a rate per year.
+\item \strong{Cox models}: \code{strata()} is allowed (hazard ratios do not depend on the
+stratum); data in (start, stop] format with time-dependent covariates
+are allowed, and \code{cluster()} or \verb{cluster =} gives robust standard errors,
+which are used. Held values are medians over the rows of the data, i.e.
+over person-time intervals rather than persons.
+\item \strong{logistf}: intervals are Wald-type from the penalized fit's covariance,
+not logistf's default profile penalized likelihood intervals.
+\item \strong{GEE}: the robust (sandwich) covariance is used, with normal-based
+critical values.
+\item Bootstrap intervals are refused for clustered or repeated data (mixed
+models, GEE, Cox models with (start, stop] data or \code{cluster()}), where
+rows cannot be resampled independently.
+}
 }
 
 \examples{

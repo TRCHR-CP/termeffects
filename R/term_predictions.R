@@ -50,6 +50,37 @@
 #' `scale = "link"`) relative to a subject with average values of the
 #' model's design-matrix columns, matching `predict(type = "lp")`.
 #'
+#' @section Supported models:
+#' | Model | Estimate (`scale = "response"`) |
+#' |:--|:--|
+#' | `lm()`, `rms::ols()` | predicted outcome |
+#' | `glm()` (any family), incl. bias-reduced fits with `method = brglm2::brglmFit` | outcome on the response scale, e.g. a probability |
+#' | `rms::lrm()` (binary outcome), `logistf::logistf()` (Firth) | probability |
+#' | `rms::orm()` | mean outcome |
+#' | `survival::coxph()`, `rms::cph()` | hazard ratio vs. an average subject |
+#' | `lme4::lmer()`, `lme4::glmer()`, `nlme::lme()` | population-level prediction (random effects at 0) |
+#' | `geepack::geeglm()` | population-averaged prediction |
+#' | `mgcv::gam()` | outcome on the response scale |
+#'
+#' Notes:
+#' * **Offsets** (`offset()` in the formula or an `offset =` argument, for
+#'   `lm`, `glm`, `geeglm`, `lme4` models): the offset's variables are held
+#'   like other covariates (median by default), so a Poisson model with
+#'   `offset(log(time))` predicts the count over the median follow-up; use
+#'   `at = list(time = 365)` for a rate per year.
+#' * **Cox models**: `strata()` is allowed (hazard ratios do not depend on the
+#'   stratum); data in (start, stop] format with time-dependent covariates
+#'   are allowed, and `cluster()` or `cluster =` gives robust standard errors,
+#'   which are used. Held values are medians over the rows of the data, i.e.
+#'   over person-time intervals rather than persons.
+#' * **logistf**: intervals are Wald-type from the penalized fit's covariance,
+#'   not logistf's default profile penalized likelihood intervals.
+#' * **GEE**: the robust (sandwich) covariance is used, with normal-based
+#'   critical values.
+#' * Bootstrap intervals are refused for clustered or repeated data (mixed
+#'   models, GEE, Cox models with (start, stop] data or `cluster()`), where
+#'   rows cannot be resampled independently.
+#'
 #' @inheritParams term_grid
 #' @param newdata Optional grid to predict on, e.g. from [term_grid()] or a
 #'   hand-made data frame tracing a curve through a surface. If given,
@@ -192,13 +223,15 @@ term_predictions <- function(model,
   df <- if (ci_method == "analytic") .residual_df(model) else Inf
 
   if (mean_scale) {
-    X <- .orm_x(model, grid)
+    X <- .rms_x(model, grid)
     y_range <- range(as.numeric(model$yunique))
     transform <- function(m) pmin(pmax(m, y_range[1]), y_range[2])
     to_inference_scale <- identity
   } else {
     design <- .design(model, grid)
     X <- design$X
+    # known part of the linear predictor (offset), without uncertainty
+    offset <- if (is.null(design$offset)) 0 else design$offset
     transform <- if (scale == "response") .inverse_link(model) else identity
     to_inference_scale <- if (scale == "link") identity else if (is_orm) .orm_mean_inverse(model) else .link(model)
   }
@@ -210,7 +243,7 @@ term_predictions <- function(model,
       G <- delta$gradient
       V <- .orm_vcov_all(model)
     } else {
-      estimate <- drop(X %*% design$beta)
+      estimate <- drop(X %*% design$beta) + offset
       G <- X
       V <- design$vcov
     }
@@ -223,8 +256,8 @@ term_predictions <- function(model,
       estimate <- .orm_mean(model, X)
       draws <- t(apply(coefs, 1, function(b) .orm_mean(model, X, coefs = b)))
     } else {
-      estimate <- drop(X %*% design$beta)
-      draws <- coefs[, names(design$beta), drop = FALSE] %*% t(X)
+      estimate <- drop(X %*% design$beta) + offset
+      draws <- sweep(coefs[, names(design$beta), drop = FALSE] %*% t(X), 2, offset, "+")
     }
     draws <- matrix(draws, nrow = nrow(coefs))
     se <- apply(draws, 2, stats::sd)
@@ -252,8 +285,8 @@ term_predictions <- function(model,
   if (inherits(model, "orm")) {
     return(paste("Mean", response))
   }
-  if (inherits(model, c("glm", "gam", "glmerMod")) &&
-      stats::family(model)$family %in% c("binomial", "quasibinomial")) {
+  if (!is.null(.family_of(model)) &&
+      .family_of(model)$family %in% c("binomial", "quasibinomial")) {
     return(paste("Probability of", response))
   }
   paste("Predicted", response)

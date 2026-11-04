@@ -108,8 +108,23 @@ print.term_figure <- function(x, ...) {
   model <- original_model(model)
   type <- if (inherits(model, "orm")) {
     "proportional odds model (rms::orm)"
+  } else if (inherits(model, "lrm")) {
+    "logistic regression (rms::lrm)"
+  } else if (inherits(model, "ols")) {
+    "linear regression (rms::ols)"
   } else if (inherits(model, "coxph")) {
-    "Cox proportional hazards model (survival::coxph)"
+    paste0("Cox proportional hazards model (", if (inherits(model, "cph")) "rms::cph" else "survival::coxph",
+           if (identical(ncol(model$y), 3L)) ", (start, stop] data with time-dependent covariates",
+           if (!is.null(attr(stats::terms(model), "specials")$strata)) ", stratified",
+           if (!is.null(model$naive.var)) ", robust standard errors", ")")
+  } else if (inherits(model, "logistf")) {
+    "Firth's penalized logistic regression (logistf)"
+  } else if (inherits(model, "geeglm")) {
+    fam <- stats::family(model)
+    paste0("generalized estimating equations (geepack::geeglm, ", fam$family, " family, ",
+           fam$link, " link, ", model$corstr, " working correlation)")
+  } else if (inherits(model, "lme")) {
+    "linear mixed model (nlme::lme)"
   } else if (inherits(model, "gam")) {
     paste0("generalized additive model (mgcv::gam, ", stats::family(model)$family, ")")
   } else if (inherits(model, "glmerMod")) {
@@ -118,6 +133,7 @@ print.term_figure <- function(x, ...) {
     "linear mixed model (lme4::lmer)"
   } else if (inherits(model, "glm")) {
     fam <- stats::family(model)
+    if (inherits(model, "brglmFit")) "bias-reduced (Firth-type) logistic regression (glm with brglm2)" else
     if (fam$family == "binomial" && fam$link == "logit") "logistic regression (glm)" else
       paste0("generalized linear model (glm, ", fam$family, " family, ", fam$link, " link)")
   } else {

@@ -75,7 +75,8 @@ term_heatmap <- function(x, contours = TRUE, cuts = NULL, show_data = FALSE,
     ggplot2::scale_y_continuous(expand = c(0, 0))
   log_fill <- fill == "estimate" && isTRUE(attr(x, "log_scale"))
   p <- p + if (fill == "estimate") {
-    ggplot2::scale_fill_viridis_c(name = .wrap(fill_name), transform = if (log_fill) "log10" else "identity")
+    ggplot2::scale_fill_viridis_c(name = .wrap(fill_name), transform = if (log_fill) "log10" else "identity",
+                                  labels = if (log_fill) .plain_numbers else ggplot2::waiver())
   } else {
     # uncertainty: one hue, light (precise) to dark (uncertain)
     ggplot2::scale_fill_gradient(name = .wrap(fill_name), low = "#F7FBFF", high = "#08306B")
@@ -292,7 +293,7 @@ term_curves <- function(x, band = c("simultaneous", "pointwise", "both", "none")
   }
   if (isTRUE(attr(x, "log_scale"))) {
     p <- p + ggplot2::geom_hline(yintercept = 1, linetype = "dotted", colour = "grey40") +
-      ggplot2::scale_y_log10(labels = function(b) format(b, scientific = FALSE, drop0trailing = TRUE, trim = TRUE))
+      ggplot2::scale_y_log10(labels = .plain_numbers)
   }
   p + ggplot2::geom_line(linewidth = 0.8, arrow = arrow) +
     ggplot2::labs(x = vx, y = attr(x, "outcome_label"), subtitle = .held_subtitle(x),
@@ -424,4 +425,10 @@ plot.term_layer <- function(x, ...) {
 
 .wrap <- function(text, width = 25) {
   paste(strwrap(text, width), collapse = "\n")
+}
+
+
+# axis labels for log scales: 0.01, 1, 100 rather than 1e-02, 1e+00, 1e+02
+.plain_numbers <- function(b) {
+  format(b, scientific = FALSE, drop0trailing = TRUE, trim = TRUE)
 }

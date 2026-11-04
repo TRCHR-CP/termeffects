@@ -19,35 +19,56 @@
 }
 
 .check_supported <- function(model) {
-  if (!inherits(model, c("lm", "merMod", "coxph", "gam", "orm"))) {
+  if (!inherits(model, c("lm", "merMod", "coxph", "gam", "orm", "rms", "lme", "logistf"))) {
     stop("Models of class `", class(model)[1], "` are not supported yet. ",
-         "Supported: lm, glm, lmerMod, glmerMod, coxph, gam (mgcv), orm (rms).", call. = FALSE)
+         "Supported: lm, glm (including brglm2 and geepack::geeglm), lmerMod, glmerMod, ",
+         "nlme::lme, coxph, gam (mgcv), logistf, and rms's orm, lrm, cph and ols.", call. = FALSE)
   }
   invisible(TRUE)
 }
 
+# lm, glm, and models built on them (e.g. geepack::geeglm, brglm2 fits)
 .design.lm <- function(model, newdata) {
+  X <- .model_matrix(model, newdata)
+  .with_offset(.drop_aliased(X, stats::coef(model), stats::vcov(model)), model, newdata)
+}
+
+.design.merMod <- function(model, newdata) {
+  X <- .model_matrix(model, newdata)
+  .with_offset(.drop_aliased(X, lme4::fixef(model), as.matrix(stats::vcov(model))), model, newdata)
+}
+
+# nlme::lme: fixed effects only (population-level prediction)
+.design.lme <- function(model, newdata) {
+  .check_no_offset(model)
+  X <- .model_matrix(model, newdata)
+  .drop_aliased(X, nlme::fixef(model), as.matrix(stats::vcov(model)))
+}
+
+# Firth's penalized logistic regression (logistf). The covariance is that of
+# the penalized fit, so the intervals are Wald-type, not logistf's default
+# profile penalized likelihood intervals.
+.design.logistf <- function(model, newdata) {
   .check_no_offset(model)
   X <- .model_matrix(model, newdata)
   .drop_aliased(X, stats::coef(model), stats::vcov(model))
 }
 
-.design.merMod <- function(model, newdata) {
-  .check_no_offset(model)
-  X <- .model_matrix(model, newdata)
-  .drop_aliased(X, lme4::fixef(model), as.matrix(stats::vcov(model)))
-}
-
 .design.coxph <- function(model, newdata) {
-  specials <- attr(stats::terms(model), "specials")
-  used <- names(Filter(Negate(is.null), specials))
+  tt <- stats::terms(model)
+  specials <- attr(tt, "specials")
+  # strata() only changes the baseline hazard, so hazard ratios are unaffected
+  used <- setdiff(names(Filter(Negate(is.null), specials)), "strata")
   if (length(used)) {
     stop("Cox models with ", toString(paste0(used, "()")),
          " terms are not supported yet.", call. = FALSE)
   }
+  if (any(grepl("strata(", attr(tt, "term.labels")[attr(tt, "order") > 1], fixed = TRUE))) {
+    stop("Cox models with interactions with strata() are not supported yet.", call. = FALSE)
+  }
   .check_no_offset(model)
   X <- .model_matrix(model, newdata)
-  X <- X[, colnames(X) != "(Intercept)", drop = FALSE]
+  X <- X[, colnames(X) %in% names(stats::coef(model)), drop = FALSE]
   # centre at the sample means, as predict.coxph(type = "lp") does, so the
   # estimate is the log hazard ratio relative to an average subject
   X <- sweep(X, 2, model$means[colnames(X)])
@@ -60,7 +81,7 @@
   }
   # rms's linear predictor uses the reference ("middle") intercept, and
   # vcov.orm() returns the covariance of that intercept plus the slopes
-  X <- cbind(1, .orm_x(model, newdata))
+  X <- cbind(1, .rms_x(model, newdata))
   slopes <- stats::coef(model)[-seq_len(model$non.slopes)]
   beta <- c(stats::coef(model)[model$interceptRef], slopes)
   vcov <- stats::vcov(model)
@@ -69,9 +90,32 @@
   list(X = X, beta = beta, vcov = vcov)
 }
 
-# design matrix of an orm model for new data (without intercepts). rms
-# inverts the information matrix here, which fails for badly scaled models.
-.orm_x <- function(model, newdata) {
+# rms's lrm (binary outcome), ols and cph; orm has its own method. rms builds
+# the design matrix itself (rcs() and friends keep their knots there).
+.design.rms <- function(model, newdata) {
+  .check_no_offset(model)
+  beta <- stats::coef(model)
+  X <- .rms_x(model, newdata)
+  if (inherits(model, "cph")) {
+    # log hazard ratio relative to an average subject, as for coxph
+    X <- sweep(X, 2, model$means)
+  } else {
+    if (isTRUE(model$non.slopes > 1)) {
+      stop("lrm models with an ordinal outcome are not supported; fit the model with rms::orm().",
+           call. = FALSE)
+    }
+    X <- cbind(1, X)
+  }
+  if (ncol(X) != length(beta)) {
+    stop("Could not build the design matrix of this ", class(model)[1], " model.", call. = FALSE)
+  }
+  colnames(X) <- names(beta)
+  list(X = X, beta = beta, vcov = as.matrix(stats::vcov(model))[names(beta), names(beta)])
+}
+
+# design matrix of an rms model for new data (without intercepts). For orm,
+# rms inverts the information matrix here, which fails for badly scaled models.
+.rms_x <- function(model, newdata) {
   tryCatch(
     stats::predict(model, newdata = newdata, type = "x"),
     error = function(e) {
@@ -147,9 +191,10 @@
 # rms::bootcov(), which also handles orm intercepts missing from a resample;
 # other models are refitted on resampled rows of their data.
 .bootstrap_coefs <- function(model, nboot, data = NULL) {
-  if (inherits(model, "merMod")) {
-    stop("Bootstrap intervals are not available for mixed models, where clusters ",
-         "rather than rows would have to be resampled. Use ci_method = \"analytic\".",
+  if (.is_clustered(model)) {
+    stop("Bootstrap intervals are not available for models of clustered or repeated data ",
+         "(mixed models, GEE, Cox models with (start, stop] data or cluster()), where ",
+         "clusters rather than rows would have to be resampled. Use ci_method = \"analytic\".",
          call. = FALSE)
   }
   if (inherits(model, "rms")) {
@@ -184,13 +229,34 @@
 }
 
 
+# models whose rows are not independent, so rows cannot be bootstrapped
+.is_clustered <- function(model) {
+  inherits(model, c("merMod", "lme", "geeglm")) ||
+    (inherits(model, "coxph") && (identical(ncol(model$y), 3L) || !is.null(model$naive.var)))
+}
+
+
+# family of a generalized linear model (also for lrm and logistf, which are
+# logistic models without a family() method); NULL for other models
+.family_of <- function(model) {
+  if (inherits(model, c("lrm", "logistf"))) {
+    return(stats::binomial())
+  }
+  if (inherits(model, c("glm", "gam", "glmerMod"))) {
+    return(stats::family(model))
+  }
+  NULL
+}
+
+
 # link function: maps the response scale back to the linear predictor
 .link <- function(model) {
   if (inherits(model, "coxph")) {
     return(log)
   }
-  if (inherits(model, c("glm", "gam", "glmerMod"))) {
-    return(stats::family(model)$linkfun)
+  fam <- .family_of(model)
+  if (!is.null(fam)) {
+    return(fam$linkfun)
   }
   identity
 }
@@ -214,8 +280,9 @@
     # expected value of the outcome; increasing in the linear predictor
     return(Hmisc::Mean(model))
   }
-  if (inherits(model, c("glm", "gam", "glmerMod"))) {
-    return(stats::family(model)$linkinv)
+  fam <- .family_of(model)
+  if (!is.null(fam)) {
+    return(fam$linkinv)
   }
   identity
 }
@@ -223,6 +290,10 @@
 
 # residual degrees of freedom for t-based intervals; Inf means normal-based
 .residual_df <- function(model) {
+  if (inherits(model, c("geeglm", "lrm", "logistf"))) {
+    # robust (sandwich) or likelihood-based covariance: normal-based intervals
+    return(Inf)
+  }
   if (inherits(model, "gam") || inherits(model, "glm")) {
     # the dispersion is estimated for these families, so intervals use t
     if (stats::family(model)$family %in% c("gaussian", "Gamma", "inverse.gaussian") ||
@@ -243,6 +314,19 @@
   if (inherits(model, "merMod")) {
     return(stats::terms(model, fixed.only = TRUE))
   }
+  if (inherits(model, "lme")) {
+    return(model$terms)
+  }
+  if (inherits(model, "coxph") && !inherits(model, "cph")) {
+    # strata() terms only change the baseline hazard: leave them out, so they
+    # are neither in the design matrix nor held covariates
+    tt <- stats::terms(model)
+    strata <- grep("strata(", attr(tt, "term.labels"), fixed = TRUE)
+    if (length(strata)) {
+      tt <- stats::drop.terms(tt, strata, keep.response = TRUE)
+    }
+    return(tt)
+  }
   if (inherits(model, "gam")) {
     return(stats::terms(stats::formula(model)))
   }
@@ -254,13 +338,45 @@
 # knots (predvars), factor levels and contrasts
 .model_matrix <- function(model, newdata) {
   tt <- stats::delete.response(.fixed_terms(model))
-  original <- stats::model.matrix(model)
+  frame <- .original_frame(model)
   # factor levels are keyed by model-frame column name, e.g. "factor(am)"
-  xlev <- lapply(Filter(is.factor, stats::model.frame(model)), levels)
+  xlev <- lapply(Filter(is.factor, frame), levels)
   frame_columns <- vapply(as.list(attr(tt, "variables"))[-1], deparse1, character(1))
   mf <- stats::model.frame(tt, newdata, xlev = xlev[names(xlev) %in% frame_columns],
                            na.action = stats::na.pass)
-  stats::model.matrix(tt, mf, contrasts.arg = attr(original, "contrasts"))
+  X <- stats::model.matrix(tt, mf, contrasts.arg = .original_contrasts(model, frame))
+  attr(X, "offset") <- stats::model.offset(mf)
+  X
+}
+
+# model frame of the fitted model (nlme::lme keeps none, so it is rebuilt)
+.original_frame <- function(model) {
+  if (inherits(model, "lme")) {
+    return(stats::model.frame(model$terms, nlme::getData(model)))
+  }
+  stats::model.frame(model)
+}
+
+.original_contrasts <- function(model, frame) {
+  if (inherits(model, "lme")) {
+    return(model$contrasts)
+  }
+  tryCatch(attr(stats::model.matrix(model), "contrasts"),
+           error = function(e) attr(stats::model.matrix(.fixed_terms(model), frame), "contrasts"))
+}
+
+# offset for new data: offset() terms in the formula plus an `offset =`
+# argument of the call, evaluated at the grid's values (offset variables are
+# held like other covariates unless set with `at`)
+.with_offset <- function(design, model, newdata) {
+  offset <- attr(.model_matrix(model, newdata), "offset")
+  call_offset <- stats::getCall(model)$offset
+  if (!is.null(call_offset)) {
+    extra <- eval(call_offset, newdata, environment(stats::formula(model)))
+    offset <- if (is.null(offset)) extra else offset + extra
+  }
+  design$offset <- offset
+  design
 }
 
 

@@ -16,8 +16,8 @@
 #' written for p-ggeffects). Usually it is clearer to give the range with
 #' `values`.
 #'
-#' @param model A fitted model (`lm`, `glm`, `rms::orm`, `lmerMod`,
-#'   `glmerMod`, `coxph`, or `mgcv::gam`) or a [parameterized model][parameterize()].
+#' @param model A fitted model (see "Supported models" in [term_predictions()])
+#'   or a [parameterized model][parameterize()].
 #' @param terms Character vector with the names of the focal variables.
 #' @param values Optional named list giving the values to use for some or all
 #'   focal variables, e.g. `list(age = c(50, 60, 70))`.
@@ -220,5 +220,6 @@ term_grid <- function(model, terms, values = NULL, at = NULL, n = 30, data = NUL
 # names of the variables on the right-hand side of the model formula
 .predictor_names <- function(model) {
   tt <- .fixed_terms(model)
-  all.vars(stats::delete.response(tt))
+  # variables of an `offset =` argument are held like the other predictors
+  unique(c(all.vars(stats::delete.response(tt)), all.vars(stats::getCall(model)$offset)))
 }

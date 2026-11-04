@@ -18,11 +18,15 @@ Depends:
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
 Suggests:
+    brglm2,
+    geepack,
     Hmisc,
     knitr,
     lme4,
+    logistf,
     mgcv,
     mvtnorm,
+    nlme,
     rmarkdown,
     rms,
     splines,

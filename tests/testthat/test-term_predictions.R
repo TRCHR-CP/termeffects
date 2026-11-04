@@ -76,11 +76,14 @@ test_that("coxph: matches predict(type = 'lp') and gives hazard ratios", {
   expect_equal(hr$estimate, unname(predict(fit, newdata = hr, type = "risk")))
 })
 
-test_that("coxph with strata() gives a clear error", {
+test_that("coxph with strata(): hazard ratios as predict(), stratum not held", {
   skip_if_not_installed("survival")
-  fit <- survival::coxph(survival::Surv(time, status) ~ age + survival::strata(sex),
+  fit <- survival::coxph(survival::Surv(time, status) ~ splines::ns(age, 3) + survival::strata(sex),
                          data = survival::lung)
-  expect_error(term_predictions(fit, "age"), "not supported")
+  pred <- term_predictions(fit, "age", n = 5, scale = "link")
+  expect_equal(pred$estimate, unname(predict(fit, as.data.frame(pred)["age"], type = "lp",
+                                             reference = "sample")))
+  expect_null(attr(pred, "held")$sex)
 })
 
 test_that("mgcv gam: matches predict(se.fit = TRUE)", {
@@ -193,9 +196,10 @@ test_that("newdata can trace an arbitrary curve through the surface", {
   expect_equal(nrow(pred), 20)
 })
 
-test_that("unsupported models and offsets give clear errors", {
+test_that("offsets are added; unsupported models give clear errors", {
   fit <- lm(mpg ~ hp + offset(wt), data = mtcars)
-  expect_error(term_predictions(fit, "hp"), "offsets")
+  pred <- term_predictions(fit, "hp", n = 5)
+  expect_equal(pred$estimate, unname(predict(fit, as.data.frame(pred))))
   fit <- nls(mpg ~ a * exp(b * hp), data = mtcars, start = list(a = 40, b = -0.005))
   expect_error(term_predictions(fit, "hp", data = mtcars), "not supported")
 })

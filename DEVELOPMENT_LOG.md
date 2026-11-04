@@ -5,6 +5,79 @@ user-facing summary; this log also covers decisions, validation and tooling.
 
 ---
 
+## 2026-11-04 — More model types; rendered vignettes
+
+Brigitte asked for: logistic regression, Cox regression, extended Cox with
+time-dependent covariates ((start, stop] format), GLM, Firth regression, LME
+and GEE. Each was checked first; status before and after:
+
+| Model | Before | Now |
+|:--|:--|:--|
+| Logistic: `glm(binomial)` | worked | unchanged |
+| Logistic: `rms::lrm()` | not supported (rms splines need rms's design matrix) | supported (binary outcome; ordinal lrm refers to orm) |
+| Other GLMs (Poisson, Gamma, ...) | worked without offsets | `offset()` and `offset =` supported |
+| Firth: `glm(method = brglm2::brglmFit)` | worked (it is a glm) | named in the caption |
+| Firth: `logistf::logistf()` | not supported | supported (Wald-type intervals from the penalized fit) |
+| Cox: `coxph()` | worked | unchanged |
+| Cox: `coxph()` with `strata()` | refused | supported (hazard ratios do not depend on the stratum) |
+| Cox: `rms::cph()` | failed (rcs knots) | supported |
+| Extended Cox, (start, stop] data, `cluster()` | worked | robust SEs used (as before); bootstrap now refused |
+| LME: `lme4::lmer()`, `lme4::glmer()` | worked | unchanged |
+| LME: `nlme::lme()` | not supported | supported |
+| GEE: `geepack::geeglm()` | worked (it is a glm), but t-based intervals for gaussian | normal-based intervals (sandwich SE), bootstrap refused |
+| Linear: `rms::ols()` | failed (rcs knots) | supported |
+
+Implementation (`R/engine.R`):
+* `.design.lme()`, `.design.logistf()`, `.design.rms()` (lrm, ols, cph via
+  `predict(type = "x")`; cph centred at its means like coxph).
+* `.family_of()`: the GLM family, also for lrm and logistf, which have no
+  `family()`; used for the link, inverse link and outcome label.
+* Offsets: the model matrix keeps `model.offset()`; an `offset =` argument is
+  evaluated on the grid; offset variables are held like covariates (so
+  `at = list(time = 365)` gives a rate per year). Added to the estimate, with
+  no uncertainty.
+* `.is_clustered()`: bootstrap refused for mixed models, GEE and Cox models
+  with (start, stop] data or `cluster()`: rows are not independent there.
+* Captions name each model type (e.g. "Cox proportional hazards model
+  (survival::coxph, (start, stop] data with time-dependent covariates,
+  robust standard errors)").
+* Bug found on the way: variables of an `offset =` argument were not put on
+  the grid (R then found `base::time()`); fixed in `.predictor_names()`.
+
+Tests: `tests/testthat/test-model_types.R` compares estimates and standard
+errors with each package's own `predict()` (or X V X') for all of the above.
+Note: in the Cox model with (start, stop] data, held values are medians over
+rows (person-time intervals), not over persons; documented.
+
+Vignette: new `vignettes/model_types.Rmd` ("Supported model types, with
+examples"), one example per model on the heartfailure data. The extended Cox
+example follows Therneau's "Using time dependent covariates and time dependent
+coefficients in the Cox model" (survival's `timedep` vignette): real repeated
+labs from `pbc`/`pbcseq` merged with `tmerge()` into (tstart, tstop] data
+(1807 rows, 312 patients, 125 deaths), with a non-linear interaction of
+current log bilirubin and current albumin, and `cluster(id)`. (A first
+version used `survSplit()` with a simulated second creatinine; replaced at
+Brigitte's request.) The mixed-model and GEE examples use simulated follow-up
+visits (three per patient), labelled as simulated. The test of (start, stop]
+data uses the same `tmerge()` construction.
+
+Suggests: brglm2, geepack, logistf, nlme added.
+
+Rendered vignettes: `rendered_vignettes/` holds every vignette as GitHub
+Markdown (`.md` with PNG figures, about 5 MB), readable on GitHub, in VS
+Code's Markdown preview and in RStudio's visual editor, without building the
+package. (HTML copies were made first and dropped at Brigitte's request.)
+Regenerate with `Rscript validation/render_vignettes.R` (optionally naming
+vignettes). Excluded from the package build (`.Rbuildignore`).
+
+Also: stratified Cox models with a numeric stratum variable failed (stratum
+labels of new data did not match); `strata()` terms are now dropped from the
+terms used for prediction (spline knots kept), so the stratum variable is not
+a held covariate either. Log-scale colour legends and axes use plain numbers
+(0.1, 1, 10) instead of 1e-01.
+
+---
+
 ## 2026-11-03 — Review of the feature tour (Brigitte's comments)
 
 * **Cox curves unreadable.** The band of the hazard ratio reached 1000 at
