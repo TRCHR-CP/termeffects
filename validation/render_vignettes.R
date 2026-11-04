@@ -17,6 +17,7 @@ if (length(only)) {
 for (rmd in rmds) {
   name <- tools::file_path_sans_ext(basename(rmd))
   title <- rmarkdown::yaml_front_matter(rmd)$title
+  unlink(file.path(out, paste0(name, "_files")), recursive = TRUE)  # no stale figures
 
   md <- rmarkdown::render(rmd, output_dir = out, quiet = TRUE, envir = new.env(),
                           output_format = rmarkdown::md_document(variant = "gfm"))

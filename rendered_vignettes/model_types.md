@@ -18,8 +18,11 @@ chooses it from the model:
 | GEE: `geepack::geeglm()` | population-averaged prediction |
 | GAM: `mgcv::gam()` | outcome on its own scale |
 
-Every example below uses the same question: how does the outcome depend
-on creatinine, at three sodium values? Each section ends with
+The examples with one measurement per patient use the `heartfailure`
+data and the same question: how does the outcome depend on creatinine,
+at three sodium values? The examples with repeated measurements
+(time-dependent covariates, mixed models, GEE) use the primary biliary
+cirrhosis data from the survival package. Each section ends with
 **Check:**, saying what you should see.
 
 ``` r
@@ -227,71 +230,226 @@ person-time intervals rather than over patients. Bootstrap intervals are
 refused for these data, because rows of the same patient are not
 independent.
 
-## Mixed models
+## Repeated measurements: mixed models and GEE
 
-A mixed model is for **clustered or repeated data**, e.g. several visits
-per patient or several patients per hospital. A random effect per
-cluster (here: per patient) accounts for the correlation within
-clusters. termeffects shows the **population-level** prediction: for a
-typical patient, with the random effect at zero.
+### The data: bilirubin over time in primary biliary cirrhosis
 
-For this example we again **simulate** data: three visits per patient,
-with LVEF, creatinine and sodium varying a little around each patient’s
-recorded values.
+The `pbcseq` data (survival package) come from the Mayo Clinic trial of
+D-penicillamine against placebo in primary biliary cirrhosis, the trial
+whose data were used for the extended Cox model above. Laboratory values
+were measured repeatedly during follow-up: 1945 visits of 312 patients,
+between 1 and 16 visits per patient (median 5), over up to 14 years.
+
+Bilirubin rises as the disease progresses, so a natural question is:
+**did D-penicillamine slow the rise of bilirubin?** And, as a second
+question, does the rise depend on age at entry?
 
 ``` r
-set.seed(2)
-visits <- hf[rep(seq_len(nrow(hf)), each = 3), c("id", "ejection_fraction", "creatinine", "sodium",
-                                                   "age", "sex", "died")]
-visits$visit <- rep(1:3, nrow(hf))
-visits$creatinine <- visits$creatinine * exp(rnorm(nrow(visits), sd = 0.1))
-visits$sodium <- visits$sodium + rnorm(nrow(visits), sd = 2)
-visits$lvef <- visits$ejection_fraction + rnorm(nrow(visits), sd = 4)
+pbcv <- pbcseq
+pbcv$years <- pbcv$day / 365.25
+# in pbcseq, trt is coded 1 = D-penicillamine, 0 = placebo (checked against pbc,
+# where the same patients are coded 1 and 2)
+pbcv$treatment <- factor(pbcv$trt, c(1, 0), c("D-penicillamine", "placebo"))
+pbcv <- pbcv[order(pbcv$id, pbcv$day), ]
+head(pbcv[c("id", "years", "treatment", "age", "sex", "bili", "ascites")])
+#>   id     years       treatment      age sex bili ascites
+#> 1  1 0.0000000 D-penicillamine 58.76523   f 14.5       1
+#> 2  1 0.5256674 D-penicillamine 58.76523   f 21.3       1
+#> 3  2 0.0000000 D-penicillamine 56.44627   f  1.1       0
+#> 4  2 0.4982888 D-penicillamine 56.44627   f  0.8       0
+#> 5  2 0.9993155 D-penicillamine 56.44627   f  1.0       0
+#> 6  2 2.1026694 D-penicillamine 56.44627   f  1.9       0
 ```
 
-The same linear mixed model fitted with lme4 and with nlme:
+Bilirubin is very skewed (0.1 to 41 mg/dL) and changes multiplicatively,
+so we model its logarithm.
+
+**Why not ordinary regression?** Visits of the same patient are
+correlated: a patient with high bilirubin at one visit tends to have
+high bilirubin at the next. Ordinary regression treats the 1945 visits
+as 1945 independent patients, so its standard errors are too small and
+its bands too narrow. Mixed models and GEE are the two common ways to
+account for this, and they answer slightly different questions.
+
+### Linear mixed model
+
+A mixed model gives every patient their own starting level and their own
+rate of change (a **random intercept and random slope**,
+`(1 + years | id)`), drawn from a distribution whose spread is
+estimated. The fixed part, which termeffects shows, is the trajectory of
+a **typical patient** (random effects at zero). We let the trajectory
+over time, `ns(years, 3)`, differ by treatment and by age at entry:
 
 ``` r
-fit_lmer <- lme4::lmer(lvef ~ ns(creatinine, 3) * sodium + age + sex + (1 | id), data = visits)
-fit_lme <- nlme::lme(lvef ~ ns(creatinine, 3) * sodium + age + sex, random = ~ 1 | id, data = visits)
-term_curves(term_predictions(fit_lmer, c("creatinine", "sodium"), values = cuts))
+fit_lmer <- lme4::lmer(log(bili) ~ ns(years, 3) * (treatment + ns(age, 3)) + sex +
+                         (1 + years | id), data = pbcv)
+by_treatment <- term_predictions(fit_lmer, c("years", "treatment"),
+                                 values = list(years = seq(0, 10, length.out = 40)))
+term_curves(by_treatment)
 ```
 
-![](model_types_files/figure-gfm/mixed-1.png)<!-- -->
+![](model_types_files/figure-gfm/lmer-1.png)<!-- -->
+
+**Check:** log bilirubin rises from about 0.5 (1.6 mg/dL) to about
+2.1-2.4 (8-11 mg/dL) after 10 years, and the two treatment curves lie
+within each other’s bands throughout. The figure answers “how different
+could the trajectories be”; a formal test of “do they differ at all”
+compares the model with one in which time does not interact with
+treatment (a likelihood-ratio test, fitted by maximum likelihood):
 
 ``` r
-term_curves(term_predictions(fit_lme, c("creatinine", "sodium"), values = cuts))
+fit_same <- update(fit_lmer, . ~ . - ns(years, 3):treatment, REML = FALSE)
+anova(fit_same, update(fit_lmer, REML = FALSE))
+#> Data: pbcv
+#> Models:
+#> fit_same: log(bili) ~ ns(years, 3) + treatment + ns(age, 3) + sex + (1 + years | id) + ns(years, 3):ns(age, 3)
+#> update(fit_lmer, REML = FALSE): log(bili) ~ ns(years, 3) * (treatment + ns(age, 3)) + sex + (1 + years | id)
+#>                                npar    AIC    BIC  logLik -2*log(L)  Chisq Df Pr(>Chisq)
+#> fit_same                         22 3072.5 3195.1 -1514.3    3028.5                     
+#> update(fit_lmer, REML = FALSE)   25 3074.7 3214.0 -1512.3    3024.7 3.8496  3     0.2782
 ```
 
-![](model_types_files/figure-gfm/mixed-2.png)<!-- -->
+The p-value of about 0.3 agrees with the trial’s conclusion:
+D-penicillamine did not slow the disease.
 
-A generalized linear mixed model (`lme4::glmer()`) works the same way,
-e.g. for a binary outcome measured at each visit.
-
-**Check:** the two plots are practically identical; lme4 and nlme fit
-the same model.
-
-## Generalized estimating equations (GEE)
-
-GEE is another way to analyse clustered or repeated data. Instead of a
-random effect, it fits an ordinary regression model and corrects the
-standard errors for the correlation within clusters (robust or
-“sandwich” standard errors). The predictions are
-**population-averaged**. The data must be sorted by cluster.
+The second question, age at entry, is a surface over two continuous
+variables. Each dot in the heatmap is one visit:
 
 ``` r
-visits <- visits[order(visits$id, visits$visit), ]
-fit_gee <- geepack::geeglm(lvef ~ ns(creatinine, 3) * sodium + age + sex, id = id, data = visits,
-                           corstr = "exchangeable")
-term_curves(term_predictions(fit_gee, c("creatinine", "sodium"), values = cuts))
+by_age <- term_predictions(fit_lmer, c("years", "age"),
+                           values = list(years = seq(0, 12, length.out = 40),
+                                         age = seq(30, 75, length.out = 40)))
+term_heatmap(by_age, show_data = TRUE, show_support = TRUE)
+```
+
+![](model_types_files/figure-gfm/lmer-heatmap-1.png)<!-- -->
+
+**Check:** for the first 5-6 years the contours are almost vertical:
+bilirubin rises with time at a similar pace whatever the age at entry.
+Later they bend, suggesting a faster rise in older patients, but there
+are few visits there, and beyond about 9 years at older ages the surface
+is faded.
+
+The same model in nlme gives the same estimates:
+
+``` r
+fit_lme <- nlme::lme(log(bili) ~ ns(years, 3) * (treatment + ns(age, 3)) + sex,
+                     random = ~ 1 + years | id, data = pbcv)
+term_curves(term_predictions(fit_lme, c("years", "treatment"),
+                             values = list(years = seq(0, 10, length.out = 40))))
+```
+
+![](model_types_files/figure-gfm/lme-1.png)<!-- -->
+
+### Generalized estimating equations (GEE)
+
+GEE fits the same regression model as if the visits were independent,
+but corrects the standard errors for the correlation within patients
+(**robust**, or “sandwich”, standard errors). The working correlation,
+here `"exchangeable"` (the same correlation between any two visits of a
+patient), only needs to be roughly right. GEE describes the **population
+average**: the mean log bilirubin among patients still under observation
+at each time. The data must be sorted by patient.
+
+``` r
+fit_gee <- geepack::geeglm(log(bili) ~ ns(years, 3) * (treatment + ns(age, 3)) + sex,
+                           id = id, data = pbcv, corstr = "exchangeable")
+gee_by_treatment <- term_predictions(fit_gee, c("years", "treatment"),
+                                     values = list(years = seq(0, 10, length.out = 40)))
+term_curves(gee_by_treatment)
 ```
 
 ![](model_types_files/figure-gfm/gee-1.png)<!-- -->
 
-For a binary outcome, use `family = binomial` as in `glm()`.
+**Check:** for the first few years the curves are like those of the
+mixed model; later they level off, at about 1.3 instead of 2.1-2.4 after
+10 years.
 
-**Check:** the curves resemble the mixed-model curves (for a linear
-model, population-averaged and population-level predictions coincide).
+### Why the two differ: patients who leave the study
+
+In a linear model, the typical-patient and population-average
+trajectories are the same, so the difference has another cause:
+**dropout**. Of the 312 patients, 140 died and 29 had a liver
+transplant, and these were the sicker patients: at entry their median
+bilirubin was about 3 mg/dL (0.9 in the others), and their log bilirubin
+rose about ten times as fast (by 0.25-0.33 per year, against 0.03).
+After some years mainly the healthier patients are still being seen.
+
+- GEE averages over the patients still observed, so its curve flattens
+  as the sicker patients leave. Its results are valid if dropout is
+  unrelated to the outcome (“missing completely at random”), which is
+  clearly not the case here.
+- The mixed model follows each patient’s own trajectory and uses what
+  was measured before they left. It is valid if dropout depends only on
+  values already observed (“missing at random”), which is more plausible
+  here, because rising bilirubin was measured before death or
+  transplant.
+
+``` r
+both <- rbind(
+  transform(as.data.frame(by_treatment), model = "mixed model (typical patient)"),
+  transform(as.data.frame(gee_by_treatment), model = "GEE (patients still observed)")
+)
+ggplot2::ggplot(subset(both, treatment == "placebo"),
+                ggplot2::aes(years, estimate, colour = model, fill = model)) +
+  ggplot2::geom_ribbon(ggplot2::aes(ymin = band.low, ymax = band.high), alpha = 0.2, colour = NA) +
+  ggplot2::geom_line(linewidth = 0.8) +
+  ggplot2::scale_colour_manual(values = c("#0072B2", "#D55E00"), aesthetics = c("colour", "fill")) +
+  ggplot2::labs(y = "Predicted log(bili)", subtitle = "Placebo group") +
+  ggplot2::theme_minimal()
+```
+
+![](model_types_files/figure-gfm/compare-1.png)<!-- -->
+
+If dropout depends on values never observed (e.g. on a sudden
+deterioration between visits), neither is valid, and a joint model of
+the measurements and the time to dropout would be needed. In practice:
+use a mixed model when patients leave because of how they are doing, and
+report GEE results only with this caveat.
+
+### A binary outcome at each visit: ascites
+
+Ascites (fluid in the abdomen, a sign of advanced disease) was recorded
+at each visit. How does its probability depend on the current bilirubin?
+`glmer()` and `geeglm()` both fit logistic models for repeated binary
+outcomes, but here the two kinds of prediction really differ:
+
+- the **mixed model** gives the probability for a typical patient
+  (random effect zero);
+- **GEE** gives the proportion of all patients with ascites, averaged
+  over patients who differ in their own risk.
+
+Averaging S-shaped curves of individual patients gives a flatter curve,
+so the GEE probabilities are higher where ascites is rare and lower
+where it is common.
+
+``` r
+fit_glmer <- lme4::glmer(ascites ~ ns(log(bili), 3) + ns(years, 3) + ns(age, 3) + (1 | id),
+                         data = pbcv, family = binomial,
+                         control = lme4::glmerControl(optimizer = "bobyqa"))
+fit_gee_bin <- geepack::geeglm(ascites ~ ns(log(bili), 3) + ns(years, 3) + ns(age, 3),
+                               id = id, data = pbcv, family = binomial, corstr = "exchangeable")
+at_bili <- list(bili = exp(seq(log(0.5), log(20), length.out = 40)), years = c(1, 5))
+term_curves(term_predictions(fit_glmer, c("bili", "years"), values = at_bili)) +
+  ggplot2::scale_x_log10() + ggplot2::labs(subtitle = "Mixed model: a typical patient")
+```
+
+![](model_types_files/figure-gfm/binary-1.png)<!-- -->
+
+``` r
+term_curves(term_predictions(fit_gee_bin, c("bili", "years"), values = at_bili)) +
+  ggplot2::scale_x_log10() + ggplot2::labs(subtitle = "GEE: average over patients")
+```
+
+![](model_types_files/figure-gfm/binary-2.png)<!-- -->
+
+**Check:** in both, the probability of ascites rises steeply with
+bilirubin. At a bilirubin of 1 mg/dL the mixed model gives about 1% for
+a typical patient and GEE about 2-3% for the population; at 20 mg/dL
+both are around 40-60%. Which one to report depends on the question: the
+risk of an individual patient (mixed model) or the proportion in a
+population (GEE). (`ascites` is missing at 60 visits, which are left
+out.)
 
 ## A figure caption for any model
 
@@ -312,4 +470,4 @@ ns(log(bili), 3) and albumin as ns(albumin, 3). They interact in the
 model (ns(log(bili), 3):ns(albumin, 3)). All other covariates are held
 constant: age = 48.9 (median). Curves: cuts through the surface at
 albumin = 3.0, 3.5, 4.0. Shaded: 95% simultaneous confidence band,
-covering all curves at once (critical value 2.97).
+covering all curves at once (critical value 2.98).

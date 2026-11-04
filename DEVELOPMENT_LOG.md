@@ -57,8 +57,22 @@ labs from `pbc`/`pbcseq` merged with `tmerge()` into (tstart, tstop] data
 (1807 rows, 312 patients, 125 deaths), with a non-linear interaction of
 current log bilirubin and current albumin, and `cluster(id)`. (A first
 version used `survSplit()` with a simulated second creatinine; replaced at
-Brigitte's request.) The mixed-model and GEE examples use simulated follow-up
-visits (three per patient), labelled as simulated. The test of (start, stop]
+Brigitte's request.) The mixed-model and GEE examples first used simulated
+follow-up visits; at Brigitte's request they now use the real repeated
+measurements in `pbcseq` (1945 visits, 312 patients): log bilirubin over
+follow-up by treatment (D-penicillamine vs placebo; likelihood-ratio test of
+different trajectories p = 0.28, matching the trial's negative result) and by
+age at entry (heatmap), with `lmer`, `nlme::lme` and `geeglm`; and ascites at
+each visit with `glmer` and binomial GEE. The vignette explains
+typical-patient vs population-average predictions, and why the mixed model
+and GEE diverge late in follow-up (dropout of sicker patients: died or
+transplanted patients entered with median bilirubin 3 vs 0.9 mg/dL and rose
+about ten times faster; GEE assumes MCAR, the mixed model MAR). Note: in
+`pbcseq`, `trt` is coded 1 = D-penicillamine, 0 = placebo (checked against
+`pbc`), although its help page says 1/2.
+
+Also: outcome labels now use the whole left-hand side of the formula
+("Predicted log(bili)" instead of "Predicted bili"). The test of (start, stop]
 data uses the same `tmerge()` construction.
 
 Suggests: brglm2, geepack, logistf, nlme added.

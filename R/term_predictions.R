@@ -281,7 +281,8 @@ term_predictions <- function(model,
   if (inherits(model, "coxph")) {
     return("Hazard ratio (vs. average subject)")
   }
-  response <- all.vars(stats::formula(model))[1]
+  # the whole left-hand side, e.g. "log(bili)" rather than "bili"
+  response <- deparse1(stats::formula(model)[[2]])
   if (inherits(model, "orm")) {
     return(paste("Mean", response))
   }
