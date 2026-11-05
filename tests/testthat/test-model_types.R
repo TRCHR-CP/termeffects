@@ -135,3 +135,27 @@ test_that("rms lrm, ols and cph agree with rms's predict()", {
   hf$ef3 <- cut(hf$ejection_fraction, c(0, 30, 45, 100))
   expect_error(term_predictions(rms::lrm(ef3 ~ creatinine, data = hf), "creatinine"), "orm")
 })
+
+test_that("restricted cubic splines (rms::rcs) work outside rms fits; %ia% only in rms fits", {
+  skip_if_not_installed("rms")
+  rcs <- rms::rcs
+  `%ia%` <- rms::`%ia%`
+  fits <- list(
+    lm = lm(ejection_fraction ~ rcs(creatinine, 4) * rcs(sodium, 4) + age, data = hf),
+    glm = glm(died ~ rcs(creatinine, 4) * sodium + age, binomial, data = hf),
+    coxph = survival::coxph(survival::Surv(time, died) ~ rcs(creatinine, 4) * sodium + age, data = hf)
+  )
+  for (fit in fits) {
+    pred <- link_predictions(fit)
+    own <- if (inherits(fit, "coxph")) predict(fit, grid_data(pred), type = "lp", reference = "sample") else
+      predict(fit, grid_data(pred))
+    expect_equal(pred$estimate, unname(own), ignore_attr = TRUE)
+  }
+  ia <- lm(ejection_fraction ~ rcs(creatinine, 4) + rcs(sodium, 4) + rcs(creatinine, 4) %ia% rcs(sodium, 4),
+           data = hf)
+  expect_error(link_predictions(ia), "only works in rms fits")
+  ols_ia <- rms::ols(ejection_fraction ~ rcs(creatinine, 4) + rcs(sodium, 4) + rcs(creatinine, 4) %ia% rcs(sodium, 4),
+                     data = hf, x = TRUE, y = TRUE)
+  pred <- link_predictions(ols_ia)
+  expect_equal(pred$estimate, unname(predict(ols_ia, grid_data(pred))), ignore_attr = TRUE)
+})

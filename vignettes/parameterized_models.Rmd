@@ -7,7 +7,7 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-> **About this vignette.** Written by Lukas Bolsinger for p-ggeffects (original file `introduction_parameterized_model.Rmd`) and ported to termeffects by Brigitte Mueller. His text is kept; the code now uses the termeffects functions (`ggpredict()` became `term_predictions()`, `plot(..., "heatmap")` became `term_heatmap()`, layers became `term_layer()`), and held covariates are at their median or most common value. Also corrected: a typo (`pmodel`) that stopped two chunks from running, and simulated weights with mean 7000 instead of 70. Every change is marked in `validation/output/vignette_track_changes.html` (struck through: removed; underlined: added), or run `git diff 2de18bc -- vignettes/parameterized_models.Rmd`.
+> **About this vignette.** Written by Lukas Bolsinger for p-ggeffects (original file `introduction_parameterized_model.Rmd`) and ported to termeffects by Brigitte Mueller. His text is kept; the code now uses the termeffects functions (`ggpredict()` became `term_predictions()`, `plot(..., "heatmap")` became `term_heatmap()`, layers became `term_layer()`), and held covariates are at their median or most common value. Also corrected: a typo (`pmodel`) that stopped two chunks from running, and simulated weights with mean 7000 instead of 70. Natural splines (`ns()`) are replaced by restricted cubic splines (`rcs()`), as used in our team. The model with `%ia%` is now fitted with `ols()` instead of `lm()`: in `lm()`, `%ia%` recomputes the spline knots from the new data at prediction time, so the predictions (and the earlier figures) were wrong. Every change is marked in `validation/output/vignette_track_changes.html` (struck through: removed; underlined: added), or run `git diff 2de18bc -- vignettes/parameterized_models.Rmd`.
 
 ```{r set-options, echo = FALSE}
 knitr::opts_chunk$set(
@@ -23,7 +23,6 @@ options(width = 800)
 
 library(termeffects)
 library(rms)
-library(splines)
 set.seed(1)
 ```
 
@@ -68,7 +67,7 @@ y <- a + w/h^2 + h + w + w^2 * h + rnorm(500)
 
 
 # model example
-model <- lm(y ~ splines::ns(w,3) + splines::ns(h, 3) + splines::ns(w,3) %ia% splines::ns(h,4) + a)
+model <- ols(y ~ rcs(w, 4) + rcs(h, 4) + rcs(w, 4) %ia% rcs(h, 4) + a)
 
 # parameterize model
 pmodel1 <- parameterize(model, parameterizations = list(w = \(t,c) c*t^2, h = \(t) t))
@@ -184,7 +183,7 @@ y <- a + w/h^2 + h + w + w^2 * h + rnorm(500)
 
 
 # model example
-model <- lm(y ~ splines::ns(w,3) + splines::ns(h, 3) + splines::ns(w,3) %ia% splines::ns(h,4) + a)
+model <- ols(y ~ rcs(w, 4) + rcs(h, 4) + rcs(w, 4) %ia% rcs(h, 4) + a)
 
 # parameterize model
 pmodel1 <- parameterize(model, parameterizations = list(w = \(t,c) c*t^2, h = \(t) t))

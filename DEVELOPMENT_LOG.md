@@ -5,6 +5,50 @@ user-facing summary; this log also covers decisions, validation and tooling.
 
 ---
 
+## 2026-11-05 — Restricted cubic splines in all vignettes; `%ia%` guard
+
+Brigitte's team uses restricted cubic splines, so every vignette now uses
+`rms::rcs(x, 4)` instead of `splines::ns(x, 3)` (same degrees of freedom).
+Before switching, `rcs()` was checked in lm, glm, coxph (with strata),
+logistf, nlme::lme, lme4::lmer and geeglm: termeffects' estimates equal each
+model's own `predict()` (rms stores the knots in the model's `predvars`).
+The help-page examples keep `splines::ns()`, because rms is only a suggested
+package.
+
+- **Bug found in two of Lukas's vignettes** (`introduction`,
+  `parameterized_models`): `ns(w, 3) %ia% ns(h, 4)` in `lm()`. Outside rms
+  fits, `%ia%` keeps no knots, so `predict()` recomputes them from the new
+  data: on the heart-failure data, predictions of 126 and 430 where the fitted
+  values are 33 and 37. The figures built from these models were wrong.
+  Those models are now fitted with `ols()`, where `%ia%` works.
+- **New guard** (`.check_supported()`): a model with `%ia%` that is not an rms
+  fit is refused with an explanation, instead of giving wrong numbers.
+- Firth example: logistf needs more than its default 25 iterations with
+  `rcs()` (it stopped unconverged, with only a warning, hidden in the
+  vignette); now `maxit = 1000`, `pl = FALSE`. Converged estimates equal
+  brglm2's.
+- Student vignettes: the "About this vignette" notes mention both changes.
+- Tests: new test that `rcs()` works in lm, glm and coxph, that `%ia%` is
+  refused in lm and works in ols.
+- **Bootstrap bug fixed** (found while re-checking the vignettes): each
+  bootstrap refit re-evaluated `ns(x, 3)` / `rcs(x, 4)` on the resampled data,
+  so the knots moved between refits and the refitted coefficients belonged to
+  other spline bases than the design matrix of the predictions. With `rcs()`
+  the feature-tour bands reached +-800 LVEF points; with `ns()` the error was
+  smaller but present (it may explain the odd bootstrap band shape Brigitte
+  noticed on 2026-11-03). Now the refits use the formula with the fitted
+  knots written in (`predvars`, e.g. `rcs(creatinine, parms = c(...))`;
+  `.formula_fixed_knots()`). rms fits were not affected (`bootcov()`). New
+  test: bootstrap SEs stay close to the analytic ones. Brigitte's note: the
+  same holds for MICE; the feature tour now says to give knots explicitly.
+- Cox model captions said "n = <number of events>" (`nobs()` of a coxph);
+  they now give rows/patients and events, e.g. "n = 299, 96 events".
+- Prose re-checked against the new output (by a separate review): corrected
+  the lmer p-value (0.13, not 0.3), the uncertainty-heatmap, bootstrap,
+  layer, time-dependent Cox, landmark and age-heatmap descriptions, the test
+  count, and a sentence in `heart_failure_renal_index` claiming coverage
+  between grid points.
+
 ## 2026-11-05 — Landmark example: absolute risk after 1 year
 
 Brigitte asked whether the time-dependent Cox heatmap should show landmark

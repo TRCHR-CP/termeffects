@@ -9,9 +9,13 @@
 > common value. Also changed: the description of the methods and of the
 > differences from ggeffects, and one example that called
 > `test_predictions()` (which failed on parameterized models) is
-> removed. Every change is marked in
-> `validation/output/vignette_track_changes.html` (struck through:
-> removed; underlined: added), or run
+> removed. Natural splines (`ns()`) are replaced by restricted cubic
+> splines (`rcs()`), as used in our team. The model with `%ia%` is now
+> fitted with `ols()` instead of `lm()`: in `lm()`, `%ia%` recomputes
+> the spline knots from the new data at prediction time, so the
+> predictions (and the earlier figures) were wrong. Every change is
+> marked in `validation/output/vignette_track_changes.html` (struck
+> through: removed; underlined: added), or run
 > `git diff 2de18bc -- vignettes/introduction.Rmd`.
 
 # Adjusted predictions
@@ -101,7 +105,7 @@ y <- a + w/h^2 + h + w + w^2 * h + rnorm(500)
 
 
 # model example
-model <- lm(y ~ splines::ns(w,3) + splines::ns(h, 3) + splines::ns(w,3) %ia% splines::ns(h,4) + a)
+model <- ols(y ~ rcs(w, 4) + rcs(h, 4) + rcs(w, 4) %ia% rcs(h, 4) + a)
 
 # parameterize model
 pmodel1 <- parameterize(model, parameterizations = list(w = \(t,c) c*t^2, h = \(t) t))
@@ -111,16 +115,37 @@ print(pmodel1, show_history = TRUE)
 #> Parameterized model
 #> 
 #> Model:
+#> Linear Regression Model
 #> 
-#> Call:
-#> lm(formula = y ~ splines::ns(w, 3) + splines::ns(h, 3) + splines::ns(w, 
-#>     3) %ia% splines::ns(h, 4) + a)
+#> ols(formula = y ~ rcs(w, 4) + rcs(h, 4) + rcs(w, 4) %ia% rcs(h, 
+#>     4) + a)
 #> 
-#> Coefficients:
-#>                                   (Intercept)                             splines::ns(w, 3)1                             splines::ns(w, 3)2                             splines::ns(w, 3)3                             splines::ns(h, 3)1                             splines::ns(h, 3)2                             splines::ns(h, 3)3  splines::ns(w, 3) %ia% splines::ns(h, 4)1 * 1  splines::ns(w, 3) %ia% splines::ns(h, 4)1 * 2  splines::ns(w, 3) %ia% splines::ns(h, 4)1 * 3  splines::ns(w, 3) %ia% splines::ns(h, 4)1 * 4  splines::ns(w, 3) %ia% splines::ns(h, 4)2 * 1  splines::ns(w, 3) %ia% splines::ns(h, 4)2 * 2  splines::ns(w, 3) %ia% splines::ns(h, 4)2 * 3  splines::ns(w, 3) %ia% splines::ns(h, 4)2 * 4  splines::ns(w, 3) %ia% splines::ns(h, 4)3 * 1  splines::ns(w, 3) %ia% splines::ns(h, 4)3 * 2  
-#>                                     4.700e+05                                      2.624e+05                                      5.661e+05                                      4.754e+05                                      1.114e+05                                      2.271e+05                                      1.685e+05                                      5.601e+04                                      6.810e+04                                      1.321e+05                                      9.638e+04                                      1.268e+05                                      1.392e+05                                      2.835e+05                                      2.143e+05                                      1.047e+05                                      1.166e+05  
-#> splines::ns(w, 3) %ia% splines::ns(h, 4)3 * 3  splines::ns(w, 3) %ia% splines::ns(h, 4)3 * 4                                              a  
-#>                                     2.267e+05                                      1.797e+05                                      8.228e+00  
+#>                    Model Likelihood    Discrimination    
+#>                          Ratio Test           Indexes    
+#> Obs       500    LR chi2    4855.25    R2       1.000    
+#> sigma852.1883    d.f.            12    R2 adj   1.000    
+#> d.f.      487    Pr(> chi2)  0.0000    g   121842.331    
+#> 
+#> Residuals
+#> 
+#>     Min      1Q  Median      3Q     Max 
+#> -1837.9  -466.3   115.5   399.7 11939.9 
+#> 
+#> 
+#>           Coef        S.E.       t      Pr(>|t|)
+#> Intercept -75560.2643 54042.5454  -1.40 0.1627  
+#> w           1204.8215   797.1092   1.51 0.1313  
+#> w'         -4603.2097  1687.7076  -2.73 0.0066  
+#> w''        14501.3071  6957.6954   2.08 0.0377  
+#> h          -3714.6276   328.5908 -11.30 <0.0001 
+#> h'           783.3025   649.9872   1.21 0.2287  
+#> h''        -1581.1427  2846.9295  -0.56 0.5789  
+#> w * h        121.9522     4.8321  25.24 <0.0001 
+#> w * h'       -10.9187     9.2196  -1.18 0.2369  
+#> w * h''       21.6046    40.4410   0.53 0.5934  
+#> w' * h        42.7580     9.8579   4.34 <0.0001 
+#> w'' * h      -95.9328    40.7459  -2.35 0.0189  
+#> a             26.2106    38.1187   0.69 0.4920  
 #> 
 #> 
 #> Parameters:
@@ -141,28 +166,49 @@ print(pmodel1, show_history = TRUE)
 
 # underlying model
 original_model(pmodel1)
+#> Linear Regression Model
 #> 
-#> Call:
-#> lm(formula = y ~ splines::ns(w, 3) + splines::ns(h, 3) + splines::ns(w, 
-#>     3) %ia% splines::ns(h, 4) + a)
+#> ols(formula = y ~ rcs(w, 4) + rcs(h, 4) + rcs(w, 4) %ia% rcs(h, 
+#>     4) + a)
 #> 
-#> Coefficients:
-#>                                   (Intercept)                             splines::ns(w, 3)1                             splines::ns(w, 3)2                             splines::ns(w, 3)3                             splines::ns(h, 3)1                             splines::ns(h, 3)2                             splines::ns(h, 3)3  splines::ns(w, 3) %ia% splines::ns(h, 4)1 * 1  splines::ns(w, 3) %ia% splines::ns(h, 4)1 * 2  splines::ns(w, 3) %ia% splines::ns(h, 4)1 * 3  splines::ns(w, 3) %ia% splines::ns(h, 4)1 * 4  splines::ns(w, 3) %ia% splines::ns(h, 4)2 * 1  splines::ns(w, 3) %ia% splines::ns(h, 4)2 * 2  splines::ns(w, 3) %ia% splines::ns(h, 4)2 * 3  splines::ns(w, 3) %ia% splines::ns(h, 4)2 * 4  splines::ns(w, 3) %ia% splines::ns(h, 4)3 * 1  splines::ns(w, 3) %ia% splines::ns(h, 4)3 * 2  
-#>                                     4.700e+05                                      2.624e+05                                      5.661e+05                                      4.754e+05                                      1.114e+05                                      2.271e+05                                      1.685e+05                                      5.601e+04                                      6.810e+04                                      1.321e+05                                      9.638e+04                                      1.268e+05                                      1.392e+05                                      2.835e+05                                      2.143e+05                                      1.047e+05                                      1.166e+05  
-#> splines::ns(w, 3) %ia% splines::ns(h, 4)3 * 3  splines::ns(w, 3) %ia% splines::ns(h, 4)3 * 4                                              a  
-#>                                     2.267e+05                                      1.797e+05                                      8.228e+00
+#>                    Model Likelihood    Discrimination    
+#>                          Ratio Test           Indexes    
+#> Obs       500    LR chi2    4855.25    R2       1.000    
+#> sigma852.1883    d.f.            12    R2 adj   1.000    
+#> d.f.      487    Pr(> chi2)  0.0000    g   121842.331    
+#> 
+#> Residuals
+#> 
+#>     Min      1Q  Median      3Q     Max 
+#> -1837.9  -466.3   115.5   399.7 11939.9 
+#> 
+#> 
+#>           Coef        S.E.       t      Pr(>|t|)
+#> Intercept -75560.2643 54042.5454  -1.40 0.1627  
+#> w           1204.8215   797.1092   1.51 0.1313  
+#> w'         -4603.2097  1687.7076  -2.73 0.0066  
+#> w''        14501.3071  6957.6954   2.08 0.0377  
+#> h          -3714.6276   328.5908 -11.30 <0.0001 
+#> h'           783.3025   649.9872   1.21 0.2287  
+#> h''        -1581.1427  2846.9295  -0.56 0.5789  
+#> w * h        121.9522     4.8321  25.24 <0.0001 
+#> w * h'       -10.9187     9.2196  -1.18 0.2369  
+#> w * h''       21.6046    40.4410   0.53 0.5934  
+#> w' * h        42.7580     9.8579   4.34 <0.0001 
+#> w'' * h      -95.9328    40.7459  -2.35 0.0189  
+#> a             26.2106    38.1187   0.69 0.4920
 
 # model parameterizations
 parameterizations(pmodel1)
 #> $w
 #> function (t, c) 
 #> (c * t^2)
-#> <environment: 0x616dc7546c50>
+#> <environment: 0x599aa4604ae8>
 #> 
 #> $h
 #> function (t) 
 #> (t)
-#> <environment: 0x616dc7546c50>
+#> <environment: 0x599aa4604ae8>
 
 # new model variables
 parameter_variables(pmodel1)

@@ -24,6 +24,15 @@
          "Supported: lm, glm (including brglm2 and geepack::geeglm), lmerMod, glmerMod, ",
          "nlme::lme, coxph, gam (mgcv), logistf, and rms's orm, lrm, cph and ols.", call. = FALSE)
   }
+  # rms's %ia% keeps no spline knots outside rms fits: predictions on new data
+  # would recompute them from the new data and be wrong
+  form <- tryCatch(deparse1(stats::formula(model)), error = function(e) "")
+  if (!inherits(model, "rms") && grepl("%ia%", form, fixed = TRUE)) {
+    stop("`%ia%` only works in rms fits (ols, lrm, cph, orm): in `", class(model)[1],
+         "` its spline knots are recomputed from the prediction grid, so predictions ",
+         "would be wrong. Fit the model with rms (e.g. ols() instead of lm()), or use `*`.",
+         call. = FALSE)
+  }
   invisible(TRUE)
 }
 
@@ -211,14 +220,21 @@
   full <- full[stats::complete.cases(full[used]), , drop = FALSE]
   call <- stats::getCall(model)
   env <- environment(stats::formula(model))
+  # name all arguments, so that `formula` can be replaced
+  call <- tryCatch(match.call(eval(call[[1]], env), call), error = function(e) call)
+  # refit with the original spline knots: otherwise ns(), rcs(), bs() etc.
+  # would choose new knots in every resample, and the coefficients would not
+  # belong to the design matrix the predictions use
+  call$formula <- .formula_fixed_knots(model)
   original <- stats::coef(model)
   coefs <- lapply(seq_len(nboot), function(b) {
     call$data <- full[sample.int(nrow(full), replace = TRUE), , drop = FALSE]
     fit <- tryCatch(suppressWarnings(eval(call, env)), error = function(e) NULL)
-    if (is.null(fit)) {
+    if (is.null(fit) || length(stats::coef(fit)) != length(original)) {
       return(NULL)
     }
-    stats::coef(fit)[names(original)]
+    # coefficient names change with the rewritten formula; the order does not
+    stats::setNames(stats::coef(fit), names(original))
   })
   coefs <- do.call(rbind, coefs)
   if (is.null(coefs)) {
@@ -413,4 +429,29 @@
   if (!is.null(attr(tt, "offset")) || !is.null(stats::getCall(model)$offset)) {
     stop("Models with offsets are not supported yet.", call. = FALSE)
   }
+}
+
+
+# the model formula with each variable replaced by its "predvars" form, which
+# stores the knots and other data-dependent settings chosen at fitting time
+# (e.g. ns(x, 3) -> ns(x, knots = ..., Boundary.knots = ...))
+.formula_fixed_knots <- function(model) {
+  form <- stats::formula(model)
+  tt <- tryCatch(stats::terms(model), error = function(e) NULL)
+  vars <- attr(tt, "variables")
+  pred <- attr(tt, "predvars")
+  if (is.null(vars) || is.null(pred) || length(vars) != length(pred)) {
+    return(form)
+  }
+  vars <- as.list(vars)[-1]
+  pred <- as.list(pred)[-1]
+  swap <- function(e) {
+    hit <- which(vapply(vars, identical, logical(1), e))
+    if (length(hit)) return(pred[[hit[1]]])
+    if (is.call(e)) e[-1] <- lapply(as.list(e)[-1], swap)
+    e
+  }
+  out <- form
+  out[[length(out)]] <- swap(form[[length(form)]])
+  out
 }

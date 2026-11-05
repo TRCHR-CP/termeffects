@@ -8,7 +8,8 @@
 > `term_layer()`), and held covariates are at their median or most
 > common value. The data now come with termeffects instead of dlookr,
 > and the standard-error heatmap is a separate plot instead of a stacked
-> panel. Every change is marked in
+> panel. Natural splines (`ns()`) are replaced by restricted cubic
+> splines (`rcs()`), as used in our team. Every change is marked in
 > `validation/output/vignette_track_changes.html` (struck through:
 > removed; underlined: added), or run
 > `git diff 2de18bc -- vignettes/heart_failure_renal_index.Rmd`.
@@ -23,7 +24,7 @@ illustrative and associative, not causal.
 
 | Feature | Demonstration |
 |:---|:---|
-| Nonlinear interactions | Natural spline interactions in a single fitted model |
+| Nonlinear interactions | Restricted cubic spline interactions in a single fitted model |
 | `term_predictions()` | Adjusted prediction surfaces on original predictor coordinates |
 | `term_heatmap()` | Visualize a two-dimensional response surface |
 | `parameterize()` | Predict using a derived renal-function coordinate without refitting |
@@ -37,20 +38,20 @@ explicitly with `at`.
 
 # Part I — Fit the model
 
-The response is modeled using ordinary least squares. Natural cubic
-splines with three degrees of freedom allow nonlinear main effects;
-their interactions allow the association with one predictor to vary
-across another. Two interactions are included to provide two distinct
-prediction surfaces. Sex and diabetes enter as additive adjustment
-terms. No prediction grid is specified during fitting.
+The response is modeled using ordinary least squares. Restricted cubic
+splines with four knots (three degrees of freedom) allow nonlinear main
+effects; their interactions allow the association with one predictor to
+vary across another. Two interactions are included to provide two
+distinct prediction surfaces. Sex and diabetes enter as additive
+adjustment terms. No prediction grid is specified during fitting.
 
 ``` r
 knitr::opts_chunk$set(fig.width = 8, fig.height = 5,
                       collapse = TRUE, comment = "#>")
 
 library(termeffects)
+library(rms)
 library(ggplot2)
-library(splines)
 ```
 
 ``` r
@@ -67,91 +68,184 @@ dat$diabetes <- as.integer(dat$diabetes == "Yes")
 
 model <- lm(
   ejection_fraction ~
-    ns(serum_creatinine, df = 3) * ns(serum_sodium, df = 3) +
-    ns(serum_creatinine, df = 3) * ns(age, df = 3) +
+    rcs(serum_creatinine, 4) * rcs(serum_sodium, 4) +
+    rcs(serum_creatinine, 4) * rcs(age, 4) +
     sex + diabetes,
   data = dat
 )
 summary(model)
 #> 
 #> Call:
-#> lm(formula = ejection_fraction ~ ns(serum_creatinine, df = 3) * 
-#>     ns(serum_sodium, df = 3) + ns(serum_creatinine, df = 3) * 
-#>     ns(age, df = 3) + sex + diabetes, data = dat)
+#> lm(formula = ejection_fraction ~ rcs(serum_creatinine, 4) * rcs(serum_sodium, 
+#>     4) + rcs(serum_creatinine, 4) * rcs(age, 4) + sex + diabetes, 
+#>     data = dat)
 #> 
 #> Residuals:
 #>     Min      1Q  Median      3Q     Max 
-#> -22.799  -7.233  -1.236   7.121  41.041 
+#> -22.999  -7.121  -1.660   6.816  41.268 
 #> 
 #> Coefficients:
-#>                                                          Estimate Std. Error
-#> (Intercept)                                             -218.6982   161.9265
-#> ns(serum_creatinine, df = 3)1                             81.7148   153.3684
-#> ns(serum_creatinine, df = 3)2                            436.6925   590.3834
-#> ns(serum_creatinine, df = 3)3                             39.6153   906.3640
-#> ns(serum_sodium, df = 3)1                                143.9680    80.6660
-#> ns(serum_sodium, df = 3)2                                485.3087   342.5573
-#> ns(serum_sodium, df = 3)3                                 69.6076   106.4562
-#> ns(age, df = 3)1                                           8.9458    22.0079
-#> ns(age, df = 3)2                                           4.0609    51.4754
-#> ns(age, df = 3)3                                          -2.6394    56.0441
-#> sex                                                       -3.5136     1.4713
-#> diabetes                                                  -0.2865     1.4212
-#> ns(serum_creatinine, df = 3)1:ns(serum_sodium, df = 3)1  -22.8787    78.4312
-#> ns(serum_creatinine, df = 3)2:ns(serum_sodium, df = 3)1 -233.3908   300.3540
-#> ns(serum_creatinine, df = 3)3:ns(serum_sodium, df = 3)1  -26.0683   468.3683
-#> ns(serum_creatinine, df = 3)1:ns(serum_sodium, df = 3)2 -194.7700   312.3687
-#> ns(serum_creatinine, df = 3)2:ns(serum_sodium, df = 3)2 -716.2526  1282.0524
-#> ns(serum_creatinine, df = 3)3:ns(serum_sodium, df = 3)2  159.0141  1992.6299
-#> ns(serum_creatinine, df = 3)1:ns(serum_sodium, df = 3)3  -12.8937    83.9749
-#> ns(serum_creatinine, df = 3)2:ns(serum_sodium, df = 3)3  -66.9487   324.1241
-#> ns(serum_creatinine, df = 3)3:ns(serum_sodium, df = 3)3   64.9744   450.2457
-#> ns(serum_creatinine, df = 3)1:ns(age, df = 3)1            -8.1186    38.4406
-#> ns(serum_creatinine, df = 3)2:ns(age, df = 3)1           -22.2740   122.1475
-#> ns(serum_creatinine, df = 3)3:ns(age, df = 3)1           -17.6235   232.1689
-#> ns(serum_creatinine, df = 3)1:ns(age, df = 3)2             9.5225   108.7402
-#> ns(serum_creatinine, df = 3)2:ns(age, df = 3)2           -93.7327   301.2797
-#> ns(serum_creatinine, df = 3)3:ns(age, df = 3)2          -189.5386   579.3444
-#> ns(serum_creatinine, df = 3)1:ns(age, df = 3)3            52.6029    44.9687
-#> ns(serum_creatinine, df = 3)2:ns(age, df = 3)3           -57.4170   196.7409
-#> ns(serum_creatinine, df = 3)3:ns(age, df = 3)3          -173.2903   311.4624
-#>                                                         t value Pr(>|t|)  
-#> (Intercept)                                              -1.351   0.1780  
-#> ns(serum_creatinine, df = 3)1                             0.533   0.5946  
-#> ns(serum_creatinine, df = 3)2                             0.740   0.4601  
-#> ns(serum_creatinine, df = 3)3                             0.044   0.9652  
-#> ns(serum_sodium, df = 3)1                                 1.785   0.0754 .
-#> ns(serum_sodium, df = 3)2                                 1.417   0.1577  
-#> ns(serum_sodium, df = 3)3                                 0.654   0.5138  
-#> ns(age, df = 3)1                                          0.406   0.6847  
-#> ns(age, df = 3)2                                          0.079   0.9372  
-#> ns(age, df = 3)3                                         -0.047   0.9625  
-#> sex                                                      -2.388   0.0176 *
-#> diabetes                                                 -0.202   0.8404  
-#> ns(serum_creatinine, df = 3)1:ns(serum_sodium, df = 3)1  -0.292   0.7707  
-#> ns(serum_creatinine, df = 3)2:ns(serum_sodium, df = 3)1  -0.777   0.4378  
-#> ns(serum_creatinine, df = 3)3:ns(serum_sodium, df = 3)1  -0.056   0.9557  
-#> ns(serum_creatinine, df = 3)1:ns(serum_sodium, df = 3)2  -0.624   0.5335  
-#> ns(serum_creatinine, df = 3)2:ns(serum_sodium, df = 3)2  -0.559   0.5768  
-#> ns(serum_creatinine, df = 3)3:ns(serum_sodium, df = 3)2   0.080   0.9365  
-#> ns(serum_creatinine, df = 3)1:ns(serum_sodium, df = 3)3  -0.154   0.8781  
-#> ns(serum_creatinine, df = 3)2:ns(serum_sodium, df = 3)3  -0.207   0.8365  
-#> ns(serum_creatinine, df = 3)3:ns(serum_sodium, df = 3)3   0.144   0.8854  
-#> ns(serum_creatinine, df = 3)1:ns(age, df = 3)1           -0.211   0.8329  
-#> ns(serum_creatinine, df = 3)2:ns(age, df = 3)1           -0.182   0.8554  
-#> ns(serum_creatinine, df = 3)3:ns(age, df = 3)1           -0.076   0.9395  
-#> ns(serum_creatinine, df = 3)1:ns(age, df = 3)2            0.088   0.9303  
-#> ns(serum_creatinine, df = 3)2:ns(age, df = 3)2           -0.311   0.7560  
-#> ns(serum_creatinine, df = 3)3:ns(age, df = 3)2           -0.327   0.7438  
-#> ns(serum_creatinine, df = 3)1:ns(age, df = 3)3            1.170   0.2431  
-#> ns(serum_creatinine, df = 3)2:ns(age, df = 3)3           -0.292   0.7706  
-#> ns(serum_creatinine, df = 3)3:ns(age, df = 3)3           -0.556   0.5784  
+#>                                                                                 Estimate
+#> (Intercept)                                                                   -1.294e+03
+#> rcs(serum_creatinine, 4)serum_creatinine                                       1.399e+03
+#> rcs(serum_creatinine, 4)serum_creatinine'                                     -1.549e+04
+#> rcs(serum_creatinine, 4)serum_creatinine''                                     3.781e+04
+#> rcs(serum_sodium, 4)serum_sodium                                               9.755e+00
+#> rcs(serum_sodium, 4)serum_sodium'                                             -1.588e+01
+#> rcs(serum_sodium, 4)serum_sodium''                                             2.357e+01
+#> rcs(age, 4)age                                                                 8.325e-01
+#> rcs(age, 4)age'                                                               -3.019e+00
+#> rcs(age, 4)age''                                                               9.188e+00
+#> sex                                                                           -3.435e+00
+#> diabetes                                                                      -2.704e-01
+#> rcs(serum_creatinine, 4)serum_creatinine:rcs(serum_sodium, 4)serum_sodium     -1.024e+01
+#> rcs(serum_creatinine, 4)serum_creatinine':rcs(serum_sodium, 4)serum_sodium     1.135e+02
+#> rcs(serum_creatinine, 4)serum_creatinine'':rcs(serum_sodium, 4)serum_sodium   -2.766e+02
+#> rcs(serum_creatinine, 4)serum_creatinine:rcs(serum_sodium, 4)serum_sodium'     1.647e+01
+#> rcs(serum_creatinine, 4)serum_creatinine':rcs(serum_sodium, 4)serum_sodium'   -1.432e+02
+#> rcs(serum_creatinine, 4)serum_creatinine'':rcs(serum_sodium, 4)serum_sodium'   3.335e+02
+#> rcs(serum_creatinine, 4)serum_creatinine:rcs(serum_sodium, 4)serum_sodium''   -2.031e+01
+#> rcs(serum_creatinine, 4)serum_creatinine':rcs(serum_sodium, 4)serum_sodium''  -1.403e+02
+#> rcs(serum_creatinine, 4)serum_creatinine'':rcs(serum_sodium, 4)serum_sodium''  5.109e+02
+#> rcs(serum_creatinine, 4)serum_creatinine:rcs(age, 4)age                       -8.199e-01
+#> rcs(serum_creatinine, 4)serum_creatinine':rcs(age, 4)age                       5.176e+00
+#> rcs(serum_creatinine, 4)serum_creatinine'':rcs(age, 4)age                     -1.160e+01
+#> rcs(serum_creatinine, 4)serum_creatinine:rcs(age, 4)age'                       3.628e+00
+#> rcs(serum_creatinine, 4)serum_creatinine':rcs(age, 4)age'                     -4.812e+01
+#> rcs(serum_creatinine, 4)serum_creatinine'':rcs(age, 4)age'                     1.243e+02
+#> rcs(serum_creatinine, 4)serum_creatinine:rcs(age, 4)age''                     -1.142e+01
+#> rcs(serum_creatinine, 4)serum_creatinine':rcs(age, 4)age''                     1.878e+02
+#> rcs(serum_creatinine, 4)serum_creatinine'':rcs(age, 4)age''                   -4.983e+02
+#>                                                                               Std. Error
+#> (Intercept)                                                                    1.175e+03
+#> rcs(serum_creatinine, 4)serum_creatinine                                       1.336e+03
+#> rcs(serum_creatinine, 4)serum_creatinine'                                      1.861e+04
+#> rcs(serum_creatinine, 4)serum_creatinine''                                     4.796e+04
+#> rcs(serum_sodium, 4)serum_sodium                                               8.954e+00
+#> rcs(serum_sodium, 4)serum_sodium'                                              2.337e+01
+#> rcs(serum_sodium, 4)serum_sodium''                                             1.721e+02
+#> rcs(age, 4)age                                                                 3.877e+00
+#> rcs(age, 4)age'                                                                1.441e+01
+#> rcs(age, 4)age''                                                               4.579e+01
+#> sex                                                                            1.483e+00
+#> diabetes                                                                       1.429e+00
+#> rcs(serum_creatinine, 4)serum_creatinine:rcs(serum_sodium, 4)serum_sodium      1.015e+01
+#> rcs(serum_creatinine, 4)serum_creatinine':rcs(serum_sodium, 4)serum_sodium     1.412e+02
+#> rcs(serum_creatinine, 4)serum_creatinine'':rcs(serum_sodium, 4)serum_sodium    3.640e+02
+#> rcs(serum_creatinine, 4)serum_creatinine:rcs(serum_sodium, 4)serum_sodium'     2.637e+01
+#> rcs(serum_creatinine, 4)serum_creatinine':rcs(serum_sodium, 4)serum_sodium'    3.706e+02
+#> rcs(serum_creatinine, 4)serum_creatinine'':rcs(serum_sodium, 4)serum_sodium'   9.592e+02
+#> rcs(serum_creatinine, 4)serum_creatinine:rcs(serum_sodium, 4)serum_sodium''    1.915e+02
+#> rcs(serum_creatinine, 4)serum_creatinine':rcs(serum_sodium, 4)serum_sodium''   2.658e+03
+#> rcs(serum_creatinine, 4)serum_creatinine'':rcs(serum_sodium, 4)serum_sodium''  6.867e+03
+#> rcs(serum_creatinine, 4)serum_creatinine:rcs(age, 4)age                        4.445e+00
+#> rcs(serum_creatinine, 4)serum_creatinine':rcs(age, 4)age                       7.083e+01
+#> rcs(serum_creatinine, 4)serum_creatinine'':rcs(age, 4)age                      1.872e+02
+#> rcs(serum_creatinine, 4)serum_creatinine:rcs(age, 4)age'                       1.635e+01
+#> rcs(serum_creatinine, 4)serum_creatinine':rcs(age, 4)age'                      2.482e+02
+#> rcs(serum_creatinine, 4)serum_creatinine'':rcs(age, 4)age'                     6.514e+02
+#> rcs(serum_creatinine, 4)serum_creatinine:rcs(age, 4)age''                      5.154e+01
+#> rcs(serum_creatinine, 4)serum_creatinine':rcs(age, 4)age''                     7.588e+02
+#> rcs(serum_creatinine, 4)serum_creatinine'':rcs(age, 4)age''                    1.982e+03
+#>                                                                               t value
+#> (Intercept)                                                                    -1.102
+#> rcs(serum_creatinine, 4)serum_creatinine                                        1.047
+#> rcs(serum_creatinine, 4)serum_creatinine'                                      -0.833
+#> rcs(serum_creatinine, 4)serum_creatinine''                                      0.788
+#> rcs(serum_sodium, 4)serum_sodium                                                1.089
+#> rcs(serum_sodium, 4)serum_sodium'                                              -0.679
+#> rcs(serum_sodium, 4)serum_sodium''                                              0.137
+#> rcs(age, 4)age                                                                  0.215
+#> rcs(age, 4)age'                                                                -0.209
+#> rcs(age, 4)age''                                                                0.201
+#> sex                                                                            -2.316
+#> diabetes                                                                       -0.189
+#> rcs(serum_creatinine, 4)serum_creatinine:rcs(serum_sodium, 4)serum_sodium      -1.008
+#> rcs(serum_creatinine, 4)serum_creatinine':rcs(serum_sodium, 4)serum_sodium      0.804
+#> rcs(serum_creatinine, 4)serum_creatinine'':rcs(serum_sodium, 4)serum_sodium    -0.760
+#> rcs(serum_creatinine, 4)serum_creatinine:rcs(serum_sodium, 4)serum_sodium'      0.625
+#> rcs(serum_creatinine, 4)serum_creatinine':rcs(serum_sodium, 4)serum_sodium'    -0.386
+#> rcs(serum_creatinine, 4)serum_creatinine'':rcs(serum_sodium, 4)serum_sodium'    0.348
+#> rcs(serum_creatinine, 4)serum_creatinine:rcs(serum_sodium, 4)serum_sodium''    -0.106
+#> rcs(serum_creatinine, 4)serum_creatinine':rcs(serum_sodium, 4)serum_sodium''   -0.053
+#> rcs(serum_creatinine, 4)serum_creatinine'':rcs(serum_sodium, 4)serum_sodium''   0.074
+#> rcs(serum_creatinine, 4)serum_creatinine:rcs(age, 4)age                        -0.184
+#> rcs(serum_creatinine, 4)serum_creatinine':rcs(age, 4)age                        0.073
+#> rcs(serum_creatinine, 4)serum_creatinine'':rcs(age, 4)age                      -0.062
+#> rcs(serum_creatinine, 4)serum_creatinine:rcs(age, 4)age'                        0.222
+#> rcs(serum_creatinine, 4)serum_creatinine':rcs(age, 4)age'                      -0.194
+#> rcs(serum_creatinine, 4)serum_creatinine'':rcs(age, 4)age'                      0.191
+#> rcs(serum_creatinine, 4)serum_creatinine:rcs(age, 4)age''                      -0.222
+#> rcs(serum_creatinine, 4)serum_creatinine':rcs(age, 4)age''                      0.248
+#> rcs(serum_creatinine, 4)serum_creatinine'':rcs(age, 4)age''                    -0.251
+#>                                                                               Pr(>|t|)
+#> (Intercept)                                                                     0.2715
+#> rcs(serum_creatinine, 4)serum_creatinine                                        0.2959
+#> rcs(serum_creatinine, 4)serum_creatinine'                                       0.4058
+#> rcs(serum_creatinine, 4)serum_creatinine''                                      0.4313
+#> rcs(serum_sodium, 4)serum_sodium                                                0.2769
+#> rcs(serum_sodium, 4)serum_sodium'                                               0.4974
+#> rcs(serum_sodium, 4)serum_sodium''                                              0.8912
+#> rcs(age, 4)age                                                                  0.8301
+#> rcs(age, 4)age'                                                                 0.8342
+#> rcs(age, 4)age''                                                                0.8411
+#> sex                                                                             0.0213
+#> diabetes                                                                        0.8501
+#> rcs(serum_creatinine, 4)serum_creatinine:rcs(serum_sodium, 4)serum_sodium       0.3143
+#> rcs(serum_creatinine, 4)serum_creatinine':rcs(serum_sodium, 4)serum_sodium      0.4221
+#> rcs(serum_creatinine, 4)serum_creatinine'':rcs(serum_sodium, 4)serum_sodium     0.4479
+#> rcs(serum_creatinine, 4)serum_creatinine:rcs(serum_sodium, 4)serum_sodium'      0.5328
+#> rcs(serum_creatinine, 4)serum_creatinine':rcs(serum_sodium, 4)serum_sodium'     0.6995
+#> rcs(serum_creatinine, 4)serum_creatinine'':rcs(serum_sodium, 4)serum_sodium'    0.7284
+#> rcs(serum_creatinine, 4)serum_creatinine:rcs(serum_sodium, 4)serum_sodium''     0.9156
+#> rcs(serum_creatinine, 4)serum_creatinine':rcs(serum_sodium, 4)serum_sodium''    0.9579
+#> rcs(serum_creatinine, 4)serum_creatinine'':rcs(serum_sodium, 4)serum_sodium''   0.9407
+#> rcs(serum_creatinine, 4)serum_creatinine:rcs(age, 4)age                         0.8538
+#> rcs(serum_creatinine, 4)serum_creatinine':rcs(age, 4)age                        0.9418
+#> rcs(serum_creatinine, 4)serum_creatinine'':rcs(age, 4)age                       0.9506
+#> rcs(serum_creatinine, 4)serum_creatinine:rcs(age, 4)age'                        0.8246
+#> rcs(serum_creatinine, 4)serum_creatinine':rcs(age, 4)age'                       0.8464
+#> rcs(serum_creatinine, 4)serum_creatinine'':rcs(age, 4)age'                      0.8488
+#> rcs(serum_creatinine, 4)serum_creatinine:rcs(age, 4)age''                       0.8247
+#> rcs(serum_creatinine, 4)serum_creatinine':rcs(age, 4)age''                      0.8047
+#> rcs(serum_creatinine, 4)serum_creatinine'':rcs(age, 4)age''                     0.8016
+#>                                                                                
+#> (Intercept)                                                                    
+#> rcs(serum_creatinine, 4)serum_creatinine                                       
+#> rcs(serum_creatinine, 4)serum_creatinine'                                      
+#> rcs(serum_creatinine, 4)serum_creatinine''                                     
+#> rcs(serum_sodium, 4)serum_sodium                                               
+#> rcs(serum_sodium, 4)serum_sodium'                                              
+#> rcs(serum_sodium, 4)serum_sodium''                                             
+#> rcs(age, 4)age                                                                 
+#> rcs(age, 4)age'                                                                
+#> rcs(age, 4)age''                                                               
+#> sex                                                                           *
+#> diabetes                                                                       
+#> rcs(serum_creatinine, 4)serum_creatinine:rcs(serum_sodium, 4)serum_sodium      
+#> rcs(serum_creatinine, 4)serum_creatinine':rcs(serum_sodium, 4)serum_sodium     
+#> rcs(serum_creatinine, 4)serum_creatinine'':rcs(serum_sodium, 4)serum_sodium    
+#> rcs(serum_creatinine, 4)serum_creatinine:rcs(serum_sodium, 4)serum_sodium'     
+#> rcs(serum_creatinine, 4)serum_creatinine':rcs(serum_sodium, 4)serum_sodium'    
+#> rcs(serum_creatinine, 4)serum_creatinine'':rcs(serum_sodium, 4)serum_sodium'   
+#> rcs(serum_creatinine, 4)serum_creatinine:rcs(serum_sodium, 4)serum_sodium''    
+#> rcs(serum_creatinine, 4)serum_creatinine':rcs(serum_sodium, 4)serum_sodium''   
+#> rcs(serum_creatinine, 4)serum_creatinine'':rcs(serum_sodium, 4)serum_sodium''  
+#> rcs(serum_creatinine, 4)serum_creatinine:rcs(age, 4)age                        
+#> rcs(serum_creatinine, 4)serum_creatinine':rcs(age, 4)age                       
+#> rcs(serum_creatinine, 4)serum_creatinine'':rcs(age, 4)age                      
+#> rcs(serum_creatinine, 4)serum_creatinine:rcs(age, 4)age'                       
+#> rcs(serum_creatinine, 4)serum_creatinine':rcs(age, 4)age'                      
+#> rcs(serum_creatinine, 4)serum_creatinine'':rcs(age, 4)age'                     
+#> rcs(serum_creatinine, 4)serum_creatinine:rcs(age, 4)age''                      
+#> rcs(serum_creatinine, 4)serum_creatinine':rcs(age, 4)age''                     
+#> rcs(serum_creatinine, 4)serum_creatinine'':rcs(age, 4)age''                    
 #> ---
 #> Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 #> 
-#> Residual standard error: 11.43 on 269 degrees of freedom
-#> Multiple R-squared:  0.158,  Adjusted R-squared:  0.06722 
-#> F-statistic: 1.741 on 29 and 269 DF,  p-value: 0.01295
+#> Residual standard error: 11.48 on 269 degrees of freedom
+#> Multiple R-squared:  0.1504, Adjusted R-squared:  0.0588 
+#> F-statistic: 1.642 on 29 and 269 DF,  p-value: 0.0235
 ```
 
 # Part II — Specify predictions
@@ -243,12 +337,12 @@ index_data <- expand.grid(
 index_data$predicted <- predict(pmodel, newdata = index_data)
 head(index_data)
 #>   index age serum_sodium sex diabetes predicted
-#> 1    40  50          137   1        0  31.73205
-#> 2    42  50          137   1        0  31.71171
-#> 3    44  50          137   1        0  31.74154
-#> 4    46  50          137   1        0  31.80968
-#> 5    48  50          137   1        0  31.90698
-#> 6    50  50          137   1        0  32.02636
+#> 1    40  50          137   1        0  34.74582
+#> 2    42  50          137   1        0  34.09945
+#> 3    44  50          137   1        0  33.56033
+#> 4    46  50          137   1        0  33.12169
+#> 5    48  50          137   1        0  32.77472
+#> 6    50  50          137   1        0  32.50993
 ```
 
 ## Feature 3 — Parameterized curves on a surface
@@ -285,19 +379,19 @@ layer_index <- term_layer(
 )
 head(as.data.frame(layer_index))
 #>       t  r serum_sodium sex diabetes age serum_creatinine estimate std.error
-#> 1 -27.5 40          137   1        0  40         3.053507 38.68266 13.781313
-#> 2 -26.5 40          137   1        0  41         3.023124 37.77016 12.515608
-#> 3 -25.5 40          137   1        0  42         2.993043 36.89604 11.311205
-#> 4 -24.5 40          137   1        0  43         2.963262 36.06462 10.181240
-#> 5 -23.5 40          137   1        0  44         2.933777 35.27985  9.139766
-#> 6 -22.5 40          137   1        0  45         2.904586 34.54536  8.201484
+#> 1 -27.5 40          137   1        0  40         3.053507 39.60151 11.253733
+#> 2 -26.5 40          137   1        0  41         3.023124 39.07264 10.142179
+#> 3 -25.5 40          137   1        0  42         2.993043 38.55008  9.084605
+#> 4 -24.5 40          137   1        0  43         2.963262 38.03380  8.085315
+#> 5 -23.5 40          137   1        0  44         2.933777 37.52450  7.153641
+#> 6 -22.5 40          137   1        0  45         2.904586 37.02453  6.307773
 #>   conf.low conf.high  band.low band.high
-#> 1 11.54971  65.81561 -4.268429  81.63375
-#> 2 13.12916  62.41117 -1.236209  76.77653
-#> 3 14.62629  59.16579  1.643334  72.14875
-#> 4 16.01957  56.10967  4.333579  67.79565
-#> 5 17.28527  53.27442  6.794685  63.76501
-#> 6 18.39810  50.69262  8.984466  60.10626
+#> 1 17.44491  61.75810  4.198051  75.00496
+#> 2 19.10449  59.04078  7.166053  70.97923
+#> 3 20.66411  56.43605  9.970547  67.12961
+#> 4 22.11526  53.95235 12.597970  63.46964
+#> 5 23.44026  51.60874 15.019648  60.02935
+#> 6 24.60565  49.44342 17.180722  56.86835
 ```
 
 # Part III — Plot the predictions
@@ -454,9 +548,9 @@ plot(sim_test)
 - **The critical value is estimated using a finite grid.** The grid
   approximates the supremum over the prediction domain; it is a
   numerical method for estimating the simultaneous critical value, not a
-  restriction of the intended band to sample or grid points. Coverage is
-  intended to apply between grid points as well, with accuracy depending
-  on how well the generated grid represents the domain.
+  restriction of the intended band to sample or grid points. The band is
+  simultaneous over the generated grid points; it is approximately valid
+  between them only if the grid is fine.
 - **The scope can be chosen.** `ci_scope = "global"` (default) makes the
   band simultaneous over the whole grid; `"faceted"` and `"curve"` give
   separate simultaneous adjustments by facet or by curve.

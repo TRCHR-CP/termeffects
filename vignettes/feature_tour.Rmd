@@ -29,7 +29,7 @@ These run from the package folder in RStudio:
 
 ```{r, eval = FALSE}
 devtools::load_all()   # load the current code without installing
-devtools::test()       # about 160 automatic tests; all should pass
+devtools::test()       # about 200 automatic tests; all should pass
 devtools::check()      # full R CMD check: 0 errors expected
 devtools::build_vignettes()   # renders all vignettes, including this one
 ```
@@ -46,10 +46,9 @@ model types.
 ```{r model}
 library(termeffects)
 library(rms)
-library(splines)
 
 hf <- heartfailure
-fit <- lm(ejection_fraction ~ ns(creatinine, 3) * ns(sodium, 3) + ns(age, 3) + sex + diabetes,
+fit <- lm(ejection_fraction ~ rcs(creatinine, 4) * rcs(sodium, 4) + rcs(age, 4) + sex + diabetes,
           data = hf)
 ```
 
@@ -116,8 +115,9 @@ term_heatmap(surface, fill = "band_width")
 term_heatmap(surface, fill = "std.error")
 ```
 
-**Check:** both are largest where there are few patients (high creatinine,
-and the edges of the sodium range).
+**Check:** both are largest where there are few patients: at low creatinine
+(below about 0.8) combined with very high or very low sodium. At high
+creatinine they are only moderately larger.
 
 `plot()` picks the right plot for the object:
 
@@ -172,7 +172,7 @@ one per curve for `"curve"`, and they get smaller in that order.
 ### The link scale
 
 ```{r link}
-glm_fit <- glm(death_event ~ ns(creatinine, 3) * ns(sodium, 3) + age + sex,
+glm_fit <- glm(death_event ~ rcs(creatinine, 4) * rcs(sodium, 4) + age + sex,
                data = hf, family = binomial)
 risk <- term_predictions(glm_fit, c("creatinine", "sodium"),
                          values = list(creatinine = cr, sodium = c(130, 137, 142)))
@@ -197,13 +197,23 @@ attr(cuts_boot, "critical_value")
 term_curves(cuts_boot)
 ```
 
-**Check:** in the middle, where most patients are, the bands look like the
-analytic ones in section 5. Above creatinine 3 (16 patients) and below 0.7 (5
-patients), the bootstrap bands are wider. The analytic band assumes the model
+**Check:** near creatinine 1, where most patients are, the bands are about as
+wide as the analytic ones in section 5. From creatinine 2 upwards the
+bootstrap bands are much wider, most of all for sodium 142 (from about -60 to
+150 at creatinine 4, far outside any possible LVEF): few patients have both a
+high creatinine and a high sodium (14 have creatinine above 3). The analytic band assumes the model
 is right and the spread of LVEF is the same everywhere; the bootstrap refits
 the model on resampled patients, and where only a few patients determine the
 curve, the refits differ a lot depending on which of them are drawn. Where the
 two disagree, trust the curves less.
+
+The bootstrap refits use the knots of the original model: termeffects writes
+them into the formula for each refit (e.g. `rcs(creatinine, parms = c(...))`).
+Otherwise each resample would choose its own knots, and the refitted
+coefficients would belong to different spline bases. The same applies to
+multiple imputation (e.g. mice): give the knots explicitly, e.g.
+`rcs(creatinine, c(0.7, 1, 1.2, 3))`, so that all imputed data sets use the
+same spline.
 
 For `orm` models there are three methods (see the how-to vignette for the
 simulation comparing them):
@@ -241,7 +251,7 @@ line, no difference).
 ```{r other-models}
 library(survival)
 hf$died <- as.numeric(hf$death_event == "Yes")
-cox <- coxph(Surv(time, died) ~ ns(creatinine, 3) * ns(sodium, 3) + age + sex, data = hf)
+cox <- coxph(Surv(time, died) ~ rcs(creatinine, 4) * rcs(sodium, 4) + age + sex, data = hf)
 term_curves(term_predictions(cox, c("creatinine", "sodium"),
                              values = list(creatinine = cr, sodium = c(130, 137, 142))))
 ```
@@ -368,7 +378,7 @@ term_curves(paths)
 ```
 
 **Check:** the paths run from upper left to lower right, with arrows in the
-first plot and without in the last; `term_curves()` shows LVEF along each path.
+first heatmap and without in the second; `term_curves()` shows LVEF along each path.
 
 ## 11. Testing a reference curve: `test_simultaneous_predictions()` *(from p-ggeffects)*
 

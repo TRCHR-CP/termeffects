@@ -11,7 +11,7 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-> **About this vignette.** Written by Lukas Bolsinger for p-ggeffects (original file `p_ggeffects_demonstration.Rmd`) and ported to termeffects by Brigitte Mueller. His text is kept; the code now uses the termeffects functions (`ggpredict()` became `term_predictions()`, `plot(..., "heatmap")` became `term_heatmap()`, layers became `term_layer()`), and held covariates are at their median or most common value. Also corrected: the eGFR formula is now the 2021 CKD-EPI equation (it said so before, but used a made-up linear formula); Figure 3 now plots eGFR (it plotted creatinine); the constant-eGFR curves in Figure 2 are now a `term_layer()` instead of hand-drawn contours; outdated limitations are updated. Every change is marked in `validation/output/vignette_track_changes.html` (struck through: removed; underlined: added), or run `git diff 2de18bc -- vignettes/heart_failure_egfr.Rmd`.
+> **About this vignette.** Written by Lukas Bolsinger for p-ggeffects (original file `p_ggeffects_demonstration.Rmd`) and ported to termeffects by Brigitte Mueller. His text is kept; the code now uses the termeffects functions (`ggpredict()` became `term_predictions()`, `plot(..., "heatmap")` became `term_heatmap()`, layers became `term_layer()`), and held covariates are at their median or most common value. Also corrected: the eGFR formula is now the 2021 CKD-EPI equation (it said so before, but used a made-up linear formula); Figure 3 now plots eGFR (it plotted creatinine); the constant-eGFR curves in Figure 2 are now a `term_layer()` instead of hand-drawn contours; outdated limitations are updated. Natural splines (`ns()`) are replaced by restricted cubic splines (`rcs()`), as used in our team. Every change is marked in `validation/output/vignette_track_changes.html` (struck through: removed; underlined: added), or run `git diff 2de18bc -- vignettes/heart_failure_egfr.Rmd`.
 
 # Introduction
 
@@ -37,8 +37,8 @@ knitr::opts_chunk$set(fig.width = 8, fig.height = 5, collapse = TRUE,
                       comment = "#>")
 
 library(termeffects)
+library(rms)
 library(ggplot2)
-library(splines)
 ```
 
 ```{r data}
@@ -74,11 +74,11 @@ The outcome is LVEF (%). We allow a nonlinear creatinine–sodium interaction an
 ```{r fit-model}
 model <- lm(
   ejection_fraction ~
-    ns(serum_creatinine, df = 3) +
-    ns(serum_sodium, df = 3) +
-    ns(age, df = 3) +
-    ns(serum_creatinine, df = 3) * ns(serum_sodium, df = 3) +
-    ns(serum_creatinine, df = 3) * ns(age, df = 3) +
+    rcs(serum_creatinine, 4) +
+    rcs(serum_sodium, 4) +
+    rcs(age, 4) +
+    rcs(serum_creatinine, 4) * rcs(serum_sodium, 4) +
+    rcs(serum_creatinine, 4) * rcs(age, 4) +
     sex + diabetes,
   data = dat
 )

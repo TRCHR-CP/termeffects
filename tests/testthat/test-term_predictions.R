@@ -210,3 +210,20 @@ test_that("print shows the critical values and held values", {
   expect_output(print(term_predictions(fit, c("hp", "wt"), n = 3)), "simultaneous")
   expect_output(print(term_predictions(fit, c("hp", "wt"), n = 3)), "qsec = ")
 })
+
+test_that("bootstrap refits keep the original spline knots", {
+  skip_if_not_installed("rms")
+  rcs <- rms::rcs
+  fit <- lm(ejection_fraction ~ rcs(creatinine, 4) * sodium + age, data = heartfailure)
+  form <- termeffects:::.formula_fixed_knots(fit)
+  expect_match(deparse1(form), "parms = ", fixed = TRUE)
+  ns_fit <- lm(ejection_fraction ~ splines::ns(creatinine, 3) + sodium, data = heartfailure)
+  expect_match(deparse1(termeffects:::.formula_fixed_knots(ns_fit)), "knots = ", fixed = TRUE)
+
+  set.seed(3)
+  values <- list(creatinine = c(0.7, 1, 2, 4), sodium = 137)
+  boot <- term_predictions(fit, c("creatinine", "sodium"), values = values, ci_method = "bootstrap", nboot = 200)
+  analytic <- term_predictions(fit, c("creatinine", "sodium"), values = values)
+  # with knots chosen anew in each resample, bootstrap SEs were many times too large
+  expect_lt(max(boot$std.error / analytic$std.error), 2)
+})

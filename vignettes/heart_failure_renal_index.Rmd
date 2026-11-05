@@ -11,7 +11,7 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-> **About this vignette.** Written by Lukas Bolsinger for p-ggeffects (original file `p_ggeffects_heart_failure.Rmd`) and ported to termeffects by Brigitte Mueller. His text is kept; the code now uses the termeffects functions (`ggpredict()` became `term_predictions()`, `plot(..., "heatmap")` became `term_heatmap()`, layers became `term_layer()`), and held covariates are at their median or most common value. The data now come with termeffects instead of dlookr, and the standard-error heatmap is a separate plot instead of a stacked panel. Every change is marked in `validation/output/vignette_track_changes.html` (struck through: removed; underlined: added), or run `git diff 2de18bc -- vignettes/heart_failure_renal_index.Rmd`.
+> **About this vignette.** Written by Lukas Bolsinger for p-ggeffects (original file `p_ggeffects_heart_failure.Rmd`) and ported to termeffects by Brigitte Mueller. His text is kept; the code now uses the termeffects functions (`ggpredict()` became `term_predictions()`, `plot(..., "heatmap")` became `term_heatmap()`, layers became `term_layer()`), and held covariates are at their median or most common value. The data now come with termeffects instead of dlookr, and the standard-error heatmap is a separate plot instead of a stacked panel. Natural splines (`ns()`) are replaced by restricted cubic splines (`rcs()`), as used in our team. Every change is marked in `validation/output/vignette_track_changes.html` (struck through: removed; underlined: added), or run `git diff 2de18bc -- vignettes/heart_failure_renal_index.Rmd`.
 
 # Introduction
 
@@ -19,7 +19,7 @@ This example uses the `heartfailure` data (distributed with termeffects, origina
 
 | Feature | Demonstration |
 |:--|:--|
-| Nonlinear interactions | Natural spline interactions in a single fitted model |
+| Nonlinear interactions | Restricted cubic spline interactions in a single fitted model |
 | `term_predictions()` | Adjusted prediction surfaces on original predictor coordinates |
 | `term_heatmap()` | Visualize a two-dimensional response surface |
 | `parameterize()` | Predict using a derived renal-function coordinate without refitting |
@@ -30,15 +30,15 @@ This example uses the `heartfailure` data (distributed with termeffects, origina
 
 # Part I — Fit the model
 
-The response is modeled using ordinary least squares. Natural cubic splines with three degrees of freedom allow nonlinear main effects; their interactions allow the association with one predictor to vary across another. Two interactions are included to provide two distinct prediction surfaces. Sex and diabetes enter as additive adjustment terms. No prediction grid is specified during fitting.
+The response is modeled using ordinary least squares. Restricted cubic splines with four knots (three degrees of freedom) allow nonlinear main effects; their interactions allow the association with one predictor to vary across another. Two interactions are included to provide two distinct prediction surfaces. Sex and diabetes enter as additive adjustment terms. No prediction grid is specified during fitting.
 
 ```{r setup, message=FALSE, warning=FALSE}
 knitr::opts_chunk$set(fig.width = 8, fig.height = 5,
                       collapse = TRUE, comment = "#>")
 
 library(termeffects)
+library(rms)
 library(ggplot2)
-library(splines)
 ```
 
 ```{r data-and-model}
@@ -55,8 +55,8 @@ dat$diabetes <- as.integer(dat$diabetes == "Yes")
 
 model <- lm(
   ejection_fraction ~
-    ns(serum_creatinine, df = 3) * ns(serum_sodium, df = 3) +
-    ns(serum_creatinine, df = 3) * ns(age, df = 3) +
+    rcs(serum_creatinine, 4) * rcs(serum_sodium, 4) +
+    rcs(serum_creatinine, 4) * rcs(age, 4) +
     sex + diabetes,
   data = dat
 )
@@ -234,7 +234,7 @@ plot(sim_test)
 ## Simultaneous inference and marginalization
 
 - **Inference applies to the generated grid and its adjustment profile.** Non-focal predictors have already been fixed at selected values. The simultaneous bands and reference-function test therefore concern predictions at those conditional values; they do not establish simultaneous coverage over omitted predictors or their interactions. Changing the adjustment profile can change the function being assessed.
-- **The critical value is estimated using a finite grid.** The grid approximates the supremum over the prediction domain; it is a numerical method for estimating the simultaneous critical value, not a restriction of the intended band to sample or grid points. Coverage is intended to apply between grid points as well, with accuracy depending on how well the generated grid represents the domain.
+- **The critical value is estimated using a finite grid.** The grid approximates the supremum over the prediction domain; it is a numerical method for estimating the simultaneous critical value, not a restriction of the intended band to sample or grid points. The band is simultaneous over the generated grid points; it is approximately valid between them only if the grid is fine.
 - **The scope can be chosen.** `ci_scope = "global"` (default) makes the band simultaneous over the whole grid; `"faceted"` and `"curve"` give separate simultaneous adjustments by facet or by curve.
 - **The reference-function test is not a general shape or linearity test.** It compares predictions with one supplied function. For non-standard models and parameterizations, defining the relevant reference function in the original predictor coordinates may not be straightforward; it must return one numeric value at each evaluation point and use argument names matching variables of the predictions. Standard hypotheses such as linearity also generally require fitting an additional constrained or reference model, with its estimation uncertainty accounted for, rather than simply supplying one fixed function.
 - **Two ways to compute the uncertainty.** By default (`ci_method = "analytic"`) it comes from the coefficients' covariance matrix; `ci_method = "bootstrap"` refits the model on resampled data instead, which is slower.

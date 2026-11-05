@@ -9,6 +9,8 @@
   `logistf`, `rms::orm`/`lrm`/`cph`/`ols`, `lme4::lmer`/`glmer`,
   `nlme::lme`, `survival::coxph` (also stratified, and with time-dependent
   covariates in (start, stop] format) and `mgcv::gam`.
+  Models using rms's `%ia%` outside an rms fit are refused, because their
+  spline knots would be recomputed from the prediction grid.
   Intervals are analytic (default) or bootstrap (`ci_method = "bootstrap"`);
   for `orm` also the delta method with all intercepts (`ci_method = "delta"`).
   `ci_scope` makes the band simultaneous per facet or per curve.

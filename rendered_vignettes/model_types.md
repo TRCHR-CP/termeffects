@@ -27,7 +27,6 @@ cirrhosis data from the survival package. Each section ends with
 
 ``` r
 library(termeffects)
-library(splines)
 library(survival)
 library(rms)
 
@@ -46,7 +45,7 @@ transformed, so they stay between 0 and 1. The same model can be fitted
 with `glm()` or with rms’s `lrm()`:
 
 ``` r
-fit_glm <- glm(died ~ ns(creatinine, 3) * ns(sodium, 3) + age + sex, family = binomial, data = hf)
+fit_glm <- glm(died ~ rcs(creatinine, 4) * rcs(sodium, 4) + age + sex, family = binomial, data = hf)
 fit_lrm <- lrm(died ~ rcs(creatinine, 4) * rcs(sodium, 4) + age + sex, data = hf)
 
 term_curves(term_predictions(fit_glm, c("creatinine", "sodium"), values = cuts))
@@ -61,9 +60,8 @@ term_curves(term_predictions(fit_lrm, c("creatinine", "sodium"), values = cuts))
 ![](model_types_files/figure-gfm/logistic-2.png)<!-- -->
 
 **Check:** the y-axis is “Probability of died”, and all bands lie
-between 0 and 1. The two models use different splines (natural splines
-and restricted cubic splines with different knots), so the curves are
-similar but not identical.
+between 0 and 1. Both models use the same restricted cubic splines, so
+the two plots are identical.
 
 ## Firth logistic regression
 
@@ -75,14 +73,20 @@ and always gives finite estimates. It is available in the logistf
 package, and as a `glm()` fitting method in brglm2.
 
 ``` r
-fit_firth <- logistf::logistf(died ~ ns(creatinine, 3) * sodium + age + sex, data = hf)
+# logistf stops after 25 iterations by default, too few for this model;
+# pl = FALSE skips its profile-likelihood intervals, which termeffects does not use
+fit_firth <- logistf::logistf(died ~ rcs(creatinine, 4) * sodium + age + sex, data = hf, pl = FALSE,
+                              control = logistf::logistf.control(maxit = 1000))
+fit_firth$iter  # iterations used: below 1000, so it converged
+#> full null 
+#>  485    3
 term_curves(term_predictions(fit_firth, c("creatinine", "sodium"), values = cuts))
 ```
 
 ![](model_types_files/figure-gfm/firth-1.png)<!-- -->
 
 ``` r
-fit_br <- glm(died ~ ns(creatinine, 3) * sodium + age + sex, family = binomial, data = hf,
+fit_br <- glm(died ~ rcs(creatinine, 4) * sodium + age + sex, family = binomial, data = hf,
               method = brglm2::brglmFit)
 term_curves(term_predictions(fit_br, c("creatinine", "sodium"), values = cuts))
 ```
@@ -106,7 +110,7 @@ the number of deaths during the median follow-up; with
 patient-year**.
 
 ``` r
-fit_rate <- glm(died ~ ns(creatinine, 3) + sodium + age + sex + offset(log(time)),
+fit_rate <- glm(died ~ rcs(creatinine, 4) + sodium + age + sex + offset(log(time)),
                 family = poisson, data = hf)
 rate <- term_predictions(fit_rate, c("creatinine", "sodium"), values = cuts, at = list(time = 365))
 term_curves(rate) + ggplot2::labs(y = "Deaths per patient-year")
@@ -140,7 +144,7 @@ model can be fitted with `coxph()` or rms’s `cph()`, and may be
 which leaves the hazard ratios unchanged.
 
 ``` r
-fit_cox <- coxph(Surv(time, died) ~ ns(creatinine, 3) * sodium + age + strata(sex), data = hf)
+fit_cox <- coxph(Surv(time, died) ~ rcs(creatinine, 4) * sodium + age + strata(sex), data = hf)
 term_curves(term_predictions(fit_cox, c("creatinine", "sodium"), values = cuts))
 ```
 
@@ -199,7 +203,7 @@ the same patient belong together; it then reports robust standard
 errors, which termeffects uses.
 
 ``` r
-fit_td <- coxph(Surv(tstart, tstop, death == 2) ~ ns(log(bili), 3) * ns(albumin, 3) + age +
+fit_td <- coxph(Surv(tstart, tstop, death == 2) ~ rcs(log(bili), 4) * rcs(albumin, 4) + age +
                   cluster(id), data = pbc2)
 bili_values <- exp(seq(log(0.5), log(15), length.out = 40))
 
@@ -222,10 +226,10 @@ term_curves(term_predictions(fit_td, c("bili", "albumin"),
 **Check:** where there are measurements, the hazard ratio rises steeply
 with the current bilirubin, and at the same bilirubin a higher albumin
 goes with a lower hazard. Below a bilirubin of about 1 with low albumin
-(the faded corner of the heatmap) there are few measurements, the curves
-cross and the bands are very wide: do not interpret that region. The
-dots in the heatmap are the measurements (rows of `pbc2`), not patients.
-The held value of age is the median over these rows, i.e. over
+there are few measurements (too many to be faded, but still few), the
+curves cross and the bands are very wide: do not interpret that region.
+The dots in the heatmap are the measurements (rows of `pbc2`), not
+patients. The held value of age is the median over these rows, i.e. over
 person-time intervals rather than over patients. Bootstrap intervals are
 refused for these data, because rows of the same patient are not
 independent.
@@ -263,7 +267,7 @@ c(patients = nrow(lm_data), deaths = sum(lm_data$died))
 #> patients   deaths 
 #>      290      103
 
-fit_lm <- coxph(Surv(years, died) ~ ns(log(bili), 3) * albumin + age, data = lm_data)
+fit_lm <- coxph(Surv(years, died) ~ rcs(log(bili), 4) * albumin + age, data = lm_data)
 
 grid <- expand.grid(bili = exp(seq(log(0.4), log(15), length.out = 40)),
                     albumin = seq(2.5, 4.4, length.out = 40),
@@ -287,10 +291,12 @@ ggplot(grid, aes(bili, albumin)) +
 
 **Check:** 290 patients were alive and in follow-up at 1 year, and 103
 of them died later. The 2-year risk is a few percent for a low bilirubin
-and rises to over 50% for a bilirubin above about 10; at the same
-bilirubin, a lower albumin goes with a higher risk. The white lines mark
-10%, 25% and 50% risk. The bump in the lower left lies where there are
-almost no patients; there, as at the edges, the surface is not reliable.
+and rises to over 50% for a bilirubin above about 10 when albumin is low
+(below about 3.4); at the same bilirubin, a lower albumin goes with a
+higher risk. The white lines mark 10%, 25% and 50% risk. The small
+island at the bottom edge (bilirubin 1-2, albumin about 2.5) lies where
+there are almost no patients; there, as at the edges, the surface is not
+reliable.
 
 Some points for a publication:
 
@@ -352,10 +358,10 @@ rate of change (a **random intercept and random slope**,
 `(1 + years | id)`), drawn from a distribution whose spread is
 estimated. The fixed part, which termeffects shows, is the trajectory of
 a **typical patient** (random effects at zero). We let the trajectory
-over time, `ns(years, 3)`, differ by treatment and by age at entry:
+over time, `rcs(years, 4)`, differ by treatment and by age at entry:
 
 ``` r
-fit_lmer <- lme4::lmer(log(bili) ~ ns(years, 3) * (treatment + ns(age, 3)) + sex +
+fit_lmer <- lme4::lmer(log(bili) ~ rcs(years, 4) * (treatment + rcs(age, 4)) + sex +
                          (1 + years | id), data = pbcv)
 by_treatment <- term_predictions(fit_lmer, c("years", "treatment"),
                                  values = list(years = seq(0, 10, length.out = 40)))
@@ -372,21 +378,18 @@ compares the model with one in which time does not interact with
 treatment (a likelihood-ratio test, fitted by maximum likelihood):
 
 ``` r
-fit_same <- update(fit_lmer, . ~ . - ns(years, 3):treatment, REML = FALSE)
+fit_same <- update(fit_lmer, . ~ . - rcs(years, 4):treatment, REML = FALSE)
 anova(fit_same, update(fit_lmer, REML = FALSE))
 #> Data: pbcv
 #> Models:
-#> fit_same: log(bili) ~ ns(years, 3) + treatment + ns(age, 3) + sex + (1 + years | id) + ns(years, 3):ns(age, 3)
-#> update(fit_lmer, REML = FALSE): log(bili) ~ ns(years, 3) * (treatment + ns(age, 3)) + sex + (1 + years | id)
-#>                                npar    AIC    BIC  logLik -2*log(L)  Chisq Df
-#> fit_same                         22 3072.5 3195.1 -1514.3    3028.5          
-#> update(fit_lmer, REML = FALSE)   25 3074.7 3214.0 -1512.3    3024.7 3.8496  3
-#>                                Pr(>Chisq)
-#> fit_same                                 
-#> update(fit_lmer, REML = FALSE)     0.2782
+#> fit_same: log(bili) ~ rcs(years, 4) + treatment + rcs(age, 4) + sex + (1 + years | id) + rcs(years, 4):rcs(age, 4)
+#> update(fit_lmer, REML = FALSE): log(bili) ~ rcs(years, 4) * (treatment + rcs(age, 4)) + sex + (1 + years | id)
+#>                                npar    AIC    BIC  logLik -2*log(L)  Chisq Df Pr(>Chisq)
+#> fit_same                         22 3069.8 3192.5 -1512.9    3025.8                     
+#> update(fit_lmer, REML = FALSE)   25 3070.3 3209.6 -1510.1    3020.3 5.5954  3      0.133
 ```
 
-The p-value of about 0.3 agrees with the trial’s conclusion:
+The p-value of about 0.13 agrees with the trial’s conclusion:
 D-penicillamine did not slow the disease.
 
 The second question, age at entry, is a surface over two continuous
@@ -403,14 +406,14 @@ term_heatmap(by_age, show_data = TRUE, show_support = TRUE)
 
 **Check:** for the first 5-6 years the contours are almost vertical:
 bilirubin rises with time at a similar pace whatever the age at entry.
-Later they bend, suggesting a faster rise in older patients, but there
-are few visits there, and beyond about 9 years at older ages the surface
-is faded.
+Later they bend, suggesting a faster rise in older patients (and, less
+clearly, in the youngest), but there are few visits there, and beyond
+about 9 years at older ages the surface is faded.
 
 The same model in nlme gives the same estimates:
 
 ``` r
-fit_lme <- nlme::lme(log(bili) ~ ns(years, 3) * (treatment + ns(age, 3)) + sex,
+fit_lme <- nlme::lme(log(bili) ~ rcs(years, 4) * (treatment + rcs(age, 4)) + sex,
                      random = ~ 1 + years | id, data = pbcv)
 term_curves(term_predictions(fit_lme, c("years", "treatment"),
                              values = list(years = seq(0, 10, length.out = 40))))
@@ -429,7 +432,7 @@ average**: the mean log bilirubin among patients still under observation
 at each time. The data must be sorted by patient.
 
 ``` r
-fit_gee <- geepack::geeglm(log(bili) ~ ns(years, 3) * (treatment + ns(age, 3)) + sex,
+fit_gee <- geepack::geeglm(log(bili) ~ rcs(years, 4) * (treatment + rcs(age, 4)) + sex,
                            id = id, data = pbcv, corstr = "exchangeable")
 gee_by_treatment <- term_predictions(fit_gee, c("years", "treatment"),
                                      values = list(years = seq(0, 10, length.out = 40)))
@@ -501,10 +504,10 @@ so the GEE probabilities are higher where ascites is rare and lower
 where it is common.
 
 ``` r
-fit_glmer <- lme4::glmer(ascites ~ ns(log(bili), 3) + ns(years, 3) + ns(age, 3) + (1 | id),
+fit_glmer <- lme4::glmer(ascites ~ rcs(log(bili), 4) + rcs(years, 4) + rcs(age, 4) + (1 | id),
                          data = pbcv, family = binomial,
                          control = lme4::glmerControl(optimizer = "bobyqa"))
-fit_gee_bin <- geepack::geeglm(ascites ~ ns(log(bili), 3) + ns(years, 3) + ns(age, 3),
+fit_gee_bin <- geepack::geeglm(ascites ~ rcs(log(bili), 4) + rcs(years, 4) + rcs(age, 4),
                                id = id, data = pbcv, family = binomial, corstr = "exchangeable")
 at_bili <- list(bili = exp(seq(log(0.5), log(20), length.out = 40)), years = c(1, 5))
 term_curves(term_predictions(fit_glmer, c("bili", "years"), values = at_bili)) +
@@ -540,11 +543,11 @@ cat(fig$caption)
 
 Hazard ratio (vs. average subject) over bili and albumin, from a Cox
 proportional hazards model (survival::coxph, (start, stop\] data with
-time-dependent covariates, robust standard errors), n = 125:
-Surv(tstart, tstop, death == 2) ~ ns(log(bili), 3) + ns(albumin, 3) +
-age + ns(log(bili), 3):ns(albumin, 3). In the model, bili enters as
-ns(log(bili), 3) and albumin as ns(albumin, 3). They interact in the
-model (ns(log(bili), 3):ns(albumin, 3)). All other covariates are held
-constant: age = 48.9 (median). Curves: cuts through the surface at
-albumin = 3.0, 3.5, 4.0. Shaded: 95% simultaneous confidence band,
-covering all curves at once (critical value 2.95).
+time-dependent covariates, robust standard errors), n = 1807 rows, 125
+events: Surv(tstart, tstop, death == 2) ~ rcs(log(bili), 4) +
+rcs(albumin, 4) + age + rcs(log(bili), 4):rcs(albumin, 4). In the model,
+bili enters as rcs(log(bili), 4) and albumin as rcs(albumin, 4). They
+interact in the model (rcs(log(bili), 4):rcs(albumin, 4)). All other
+covariates are held constant: age = 48.9 (median). Curves: cuts through
+the surface at albumin = 3.0, 3.5, 4.0. Shaded: 95% simultaneous
+confidence band, covering all curves at once (critical value 3.01).

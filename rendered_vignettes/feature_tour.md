@@ -15,7 +15,7 @@ These run from the package folder in RStudio:
 
 ``` r
 devtools::load_all()   # load the current code without installing
-devtools::test()       # about 160 automatic tests; all should pass
+devtools::test()       # about 200 automatic tests; all should pass
 devtools::check()      # full R CMD check: 0 errors expected
 devtools::build_vignettes()   # renders all vignettes, including this one
 ```
@@ -32,10 +32,9 @@ key steps for other model types.
 ``` r
 library(termeffects)
 library(rms)
-library(splines)
 
 hf <- heartfailure
-fit <- lm(ejection_fraction ~ ns(creatinine, 3) * ns(sodium, 3) + ns(age, 3) + sex + diabetes,
+fit <- lm(ejection_fraction ~ rcs(creatinine, 4) * rcs(sodium, 4) + rcs(age, 4) + sex + diabetes,
           data = hf)
 ```
 
@@ -81,35 +80,35 @@ surface
 #> Predictions over creatinine, sodium ( 1600 grid points, response scale )
 #> Held constant: age = 60 (median), sex = Male (most common), diabetes =
 #>   No (most common)
-#> Critical values for 95% intervals (analytic): pointwise 1.969, simultaneous 3.310
+#> Critical values for 95% intervals (analytic): pointwise 1.969, simultaneous 3.347
 #> 
 #>  creatinine sodium estimate conf.low conf.high band.low band.high
-#>      0.5000    125  -39.340 -114.289     35.61 -165.353     86.67
-#>      0.5897    125  -20.883  -79.076     37.31 -118.725     76.96
-#>      0.6795    125   -3.267  -45.762     39.23  -74.715     68.18
-#>      0.7692    125   12.668  -16.240     41.58  -35.935     61.27
-#>      0.8590    125   26.080    7.197     44.96   -5.668     57.83
-#>      0.9487    125   36.128   22.046     50.21   12.452     59.80
-#>      1.0385    125   42.003   28.598     55.41   19.465     64.54
-#>      1.1282    125   43.881   30.770     56.99   21.838     65.92
-#>      1.2179    125   43.131   31.197     55.07   23.066     63.20
-#>      1.3077    125   41.195   30.894     51.50   23.875     58.51
+#>      0.5000    125   -1.006   -57.65     55.64  -97.312     95.30
+#>      0.5897    125    6.968   -37.11     51.05  -67.974     81.91
+#>      0.6795    125   14.942   -17.04     46.92  -39.425     69.31
+#>      0.7692    125   22.841     1.61     44.07  -13.254     58.94
+#>      0.8590    125   29.972    15.14     44.80    4.759     55.19
+#>      0.9487    125   35.348    20.68     50.01   10.419     60.28
+#>      1.0385    125   38.009    22.33     53.68   11.357     64.66
+#>      1.1282    125   38.088    23.68     52.50   13.594     62.58
+#>      1.2179    125   37.033    25.01     49.05   16.596     57.47
+#>      1.3077    125   35.933    25.97     45.89   19.002     52.86
 #> ... with 1590 more rows
 head(as.data.frame(surface))
-#>   creatinine sodium age  sex diabetes  estimate std.error    conf.low conf.high
-#> 1  0.5000000    125  60 Male       No -39.33974 38.073489 -114.288696  35.60922
-#> 2  0.5897436    125  60 Male       No -20.88285 29.561882  -79.076418  37.31072
-#> 3  0.6794872    125  60 Male       No  -3.26678 21.587425  -45.762360  39.22880
-#> 4  0.7692308    125  60 Male       No  12.66764 14.684822  -16.239931  41.57521
-#> 5  0.8589744    125  60 Male       No  26.07959  9.592180    7.197055  44.96212
-#> 6  0.9487179    125  60 Male       No  36.12824  7.153666   22.046003  50.21047
-#>      band.low band.high
-#> 1 -165.352771  86.67329
-#> 2 -118.724745  76.95905
-#> 3  -74.715365  68.18180
-#> 4  -35.935180  61.27046
-#> 5   -5.667954  57.82713
-#> 6   12.451523  59.80495
+#>   creatinine sodium age  sex diabetes  estimate std.error   conf.low conf.high
+#> 1  0.5000000    125  60 Male       No -1.005912 28.775823 -57.652097  55.64027
+#> 2  0.5897436    125  60 Male       No  6.968221 22.392531 -37.112236  51.04868
+#> 3  0.6794872    125  60 Male       No 14.942355 16.244855 -17.036194  46.92090
+#> 4  0.7692308    125  60 Male       No 22.840636 10.785001   1.609996  44.07128
+#> 5  0.8589744    125  60 Male       No 29.972188  7.533734  15.141777  44.80260
+#> 6  0.9487179    125  60 Male       No 35.347630  7.448556  20.684895  50.01037
+#>     band.low band.high
+#> 1 -97.311668  95.29984
+#> 2 -67.974190  81.91063
+#> 3 -39.425266  69.30998
+#> 4 -13.254166  58.93544
+#> 5   4.758594  55.18578
+#> 6  10.419106  60.27615
 ```
 
 **Check:** the header names the held values and gives two critical
@@ -183,8 +182,9 @@ term_heatmap(surface, fill = "std.error")
 
 ![](feature_tour_files/figure-gfm/heatmap-uncertainty-2.png)<!-- -->
 
-**Check:** both are largest where there are few patients (high
-creatinine, and the edges of the sodium range).
+**Check:** both are largest where there are few patients: at low
+creatinine (below about 0.8) combined with very high or very low sodium.
+At high creatinine they are only moderately larger.
 
 `plot()` picks the right plot for the object:
 
@@ -241,19 +241,19 @@ women
 #> Predictions over creatinine, sodium ( 120 grid points, response scale )
 #> Held constant: age = 75 (set by user), sex = Female (set by user),
 #>   diabetes = Yes (set by user)
-#> Critical values for 95% intervals (analytic): pointwise 1.969, simultaneous 2.934
+#> Critical values for 95% intervals (analytic): pointwise 1.969, simultaneous 3.011
 #> 
 #>  creatinine sodium estimate conf.low conf.high band.low band.high
-#>      0.5000    130    28.57    7.444     49.70   -2.923     60.06
-#>      0.5897    130    31.76   15.358     48.17    7.308     56.22
-#>      0.6795    130    34.79   22.716     46.87   16.790     52.80
-#>      0.7692    130    37.49   28.970     46.02   24.788     50.20
-#>      0.8590    130    39.70   33.455     45.95   30.390     49.01
-#>      0.9487    130    41.25   35.753     46.75   33.054     49.45
-#>      1.0385    130    41.99   36.432     47.55   33.705     50.27
-#>      1.1282    130    41.95   36.416     47.48   33.702     50.19
-#>      1.2179    130    41.40   36.136     46.66   33.555     49.24
-#>      1.3077    130    40.63   35.705     45.55   33.290     47.96
+#>      0.5000    130    30.19    7.813     52.56   -4.035     64.41
+#>      0.5897    130    32.91   15.394     50.42    6.120     59.69
+#>      0.6795    130    35.63   22.732     48.52   15.904     55.35
+#>      0.7692    130    38.31   29.384     47.25   24.655     51.97
+#>      0.8590    130    40.68   33.920     47.44   30.341     51.02
+#>      0.9487    130    42.30   35.546     49.06   31.969     52.64
+#>      1.0385    130    42.78   35.722     49.84   31.985     53.58
+#>      1.1282    130    42.18   35.650     48.71   32.190     52.17
+#>      1.2179    130    41.15   35.476     46.82   32.473     49.82
+#>      1.3077    130    40.15   35.138     45.17   32.482     47.82
 #> ... with 110 more rows
 term_curves(women)
 ```
@@ -275,15 +275,15 @@ by_sex <- lapply(c(global = "global", faceted = "faceted", curve = "curve"), fun
                    ci_scope = scope))
 lapply(by_sex, attr, "critical_value")
 #> $global
-#> [1] 3.124853
+#> [1] 3.172827
 #> 
 #> $faceted
 #>   Female     Male 
-#> 2.981446 3.010862 
+#> 3.020792 3.069899 
 #> 
 #> $curve
 #> 130.Female   130.Male 137.Female   137.Male 142.Female   142.Male 
-#>   2.642687   2.636335   2.563638   2.592961   2.614318   2.621560
+#>   2.655298   2.670327   2.614555   2.636847   2.674407   2.667188
 term_curves(by_sex$global)
 ```
 
@@ -296,7 +296,7 @@ order.
 ### The link scale
 
 ``` r
-glm_fit <- glm(death_event ~ ns(creatinine, 3) * ns(sodium, 3) + age + sex,
+glm_fit <- glm(death_event ~ rcs(creatinine, 4) * rcs(sodium, 4) + age + sex,
                data = hf, family = binomial)
 risk <- term_predictions(glm_fit, c("creatinine", "sodium"),
                          values = list(creatinine = cr, sodium = c(130, 137, 142)))
@@ -326,20 +326,31 @@ cuts_boot <- term_predictions(fit, c("creatinine", "sodium"),
                               values = list(creatinine = cr, sodium = c(130, 137, 142)),
                               ci_method = "bootstrap", nboot = 200)
 attr(cuts_boot, "critical_value")
-#> [1] 3.547659
+#> [1] 3.560245
 term_curves(cuts_boot)
 ```
 
 ![](feature_tour_files/figure-gfm/bootstrap-1.png)<!-- -->
 
-**Check:** in the middle, where most patients are, the bands look like
-the analytic ones in section 5. Above creatinine 3 (16 patients) and
-below 0.7 (5 patients), the bootstrap bands are wider. The analytic band
-assumes the model is right and the spread of LVEF is the same
-everywhere; the bootstrap refits the model on resampled patients, and
-where only a few patients determine the curve, the refits differ a lot
-depending on which of them are drawn. Where the two disagree, trust the
-curves less.
+**Check:** near creatinine 1, where most patients are, the bands are
+about as wide as the analytic ones in section 5. From creatinine 2
+upwards the bootstrap bands are much wider, most of all for sodium 142
+(from about -60 to 150 at creatinine 4, far outside any possible LVEF):
+few patients have both a high creatinine and a high sodium (14 have
+creatinine above 3). The analytic band assumes the model is right and
+the spread of LVEF is the same everywhere; the bootstrap refits the
+model on resampled patients, and where only a few patients determine the
+curve, the refits differ a lot depending on which of them are drawn.
+Where the two disagree, trust the curves less.
+
+The bootstrap refits use the knots of the original model: termeffects
+writes them into the formula for each refit
+(e.g. `rcs(creatinine, parms = c(...))`). Otherwise each resample would
+choose its own knots, and the refitted coefficients would belong to
+different spline bases. The same applies to multiple imputation
+(e.g. mice): give the knots explicitly, e.g.
+`rcs(creatinine, c(0.7, 1, 1.2, 3))`, so that all imputed data sets use
+the same spline.
 
 For `orm` models there are three methods (see the how-to vignette for
 the simulation comparing them):
@@ -382,7 +393,7 @@ far from 1 (the dotted line, no difference).
 ``` r
 library(survival)
 hf$died <- as.numeric(hf$death_event == "Yes")
-cox <- coxph(Surv(time, died) ~ ns(creatinine, 3) * ns(sodium, 3) + age + sex, data = hf)
+cox <- coxph(Surv(time, died) ~ rcs(creatinine, 4) * rcs(sodium, 4) + age + sex, data = hf)
 term_curves(term_predictions(cox, c("creatinine", "sodium"),
                              values = list(creatinine = cr, sodium = c(130, 137, 142))))
 ```
@@ -506,32 +517,52 @@ pfit
 #> Model:
 #> 
 #> Call:
-#> lm(formula = ejection_fraction ~ ns(creatinine, 3) * ns(sodium, 
-#>     3) + ns(age, 3) + sex + diabetes, data = hf)
+#> lm(formula = ejection_fraction ~ rcs(creatinine, 4) * rcs(sodium, 
+#>     4) + rcs(age, 4) + sex + diabetes, data = hf)
 #> 
 #> Coefficients:
-#>                       (Intercept)                 ns(creatinine, 3)1  
-#>                         -270.9880                           -41.7106  
-#>                ns(creatinine, 3)2                 ns(creatinine, 3)3  
-#>                          928.3082                           908.3326  
-#>                    ns(sodium, 3)1                     ns(sodium, 3)2  
-#>                          168.9955                           594.0910  
-#>                    ns(sodium, 3)3                        ns(age, 3)1  
-#>                           88.1682                             1.5544  
-#>                       ns(age, 3)2                        ns(age, 3)3  
-#>                            5.2880                             7.5979  
-#>                           sexMale                        diabetesYes  
-#>                           -3.3220                            -0.1435  
-#> ns(creatinine, 3)1:ns(sodium, 3)1  ns(creatinine, 3)2:ns(sodium, 3)1  
-#>                           13.3967                          -439.6060  
-#> ns(creatinine, 3)3:ns(sodium, 3)1  ns(creatinine, 3)1:ns(sodium, 3)2  
-#>                         -368.2904                            60.1433  
-#> ns(creatinine, 3)2:ns(sodium, 3)2  ns(creatinine, 3)3:ns(sodium, 3)2  
-#>                        -1807.9032                         -1779.1195  
-#> ns(creatinine, 3)1:ns(sodium, 3)3  ns(creatinine, 3)2:ns(sodium, 3)3  
-#>                           35.1593                          -287.4718  
-#> ns(creatinine, 3)3:ns(sodium, 3)3  
-#>                         -330.1304  
+#>                                           (Intercept)  
+#>                                            -1.423e+03  
+#>                          rcs(creatinine, 4)creatinine  
+#>                                             1.552e+03  
+#>                         rcs(creatinine, 4)creatinine'  
+#>                                            -1.868e+04  
+#>                        rcs(creatinine, 4)creatinine''  
+#>                                             4.656e+04  
+#>                                  rcs(sodium, 4)sodium  
+#>                                             1.102e+01  
+#>                                 rcs(sodium, 4)sodium'  
+#>                                            -1.973e+01  
+#>                                rcs(sodium, 4)sodium''  
+#>                                             4.413e+01  
+#>                                        rcs(age, 4)age  
+#>                                             6.284e-02  
+#>                                       rcs(age, 4)age'  
+#>                                            -3.520e-03  
+#>                                      rcs(age, 4)age''  
+#>                                             3.109e-01  
+#>                                               sexMale  
+#>                                            -3.336e+00  
+#>                                           diabetesYes  
+#>                                            -1.194e-01  
+#>     rcs(creatinine, 4)creatinine:rcs(sodium, 4)sodium  
+#>                                            -1.171e+01  
+#>    rcs(creatinine, 4)creatinine':rcs(sodium, 4)sodium  
+#>                                             1.398e+02  
+#>   rcs(creatinine, 4)creatinine'':rcs(sodium, 4)sodium  
+#>                                            -3.479e+02  
+#>    rcs(creatinine, 4)creatinine:rcs(sodium, 4)sodium'  
+#>                                             2.131e+01  
+#>   rcs(creatinine, 4)creatinine':rcs(sodium, 4)sodium'  
+#>                                            -2.537e+02  
+#>  rcs(creatinine, 4)creatinine'':rcs(sodium, 4)sodium'  
+#>                                             6.407e+02  
+#>   rcs(creatinine, 4)creatinine:rcs(sodium, 4)sodium''  
+#>                                            -4.783e+01  
+#>  rcs(creatinine, 4)creatinine':rcs(sodium, 4)sodium''  
+#>                                             5.819e+02  
+#> rcs(creatinine, 4)creatinine'':rcs(sodium, 4)sodium''  
+#>                                            -1.520e+03  
 #> 
 #> 
 #> Parameters:
@@ -547,7 +578,7 @@ parameterizations(pfit)
 #> $creatinine
 #> function (log_creatinine) 
 #> (exp(log_creatinine))
-#> <environment: 0x5746106f6530>
+#> <environment: 0x599a9b2b8d40>
 class(original_model(pfit))
 #> [1] "lm"
 
@@ -561,10 +592,10 @@ parameterize_data(pfit, nd)
 #> 4      1.3862944    137  60 Male       No        4.0
 predict(pfit, nd)
 #>        1        2        3        4 
-#> 47.76279 37.04315 33.59173 35.69862
+#> 45.16930 38.00592 31.93800 40.76583
 predict(fit, transform(nd, creatinine = exp(log_creatinine)))
 #>        1        2        3        4 
-#> 47.76279 37.04315 33.59173 35.69862
+#> 45.16930 38.00592 31.93800 40.76583
 ```
 
 **Check:** `parameterize_data()` adds `creatinine` = 0.5, 1, 2, 4, and
@@ -614,15 +645,15 @@ head(worsening)
 #> Predictions over w ( 6 grid points, response scale )
 #> Held constant: age = 60 (median), sex = Male (most common), diabetes =
 #>   No (most common)
-#> Critical values for 95% intervals (analytic): pointwise 1.969, simultaneous 2.538
+#> Critical values for 95% intervals (analytic): pointwise 1.969, simultaneous 2.594
 #> 
 #>     w estimate conf.low conf.high band.low band.high
-#>  0.00    38.62    35.35     41.88    34.41     42.83
-#>  0.05    38.40    35.06     41.74    34.09     42.70
-#>  0.10    38.04    34.69     41.40    33.72     42.37
-#>  0.15    37.62    34.31     40.94    33.35     41.90
-#>  0.20    37.18    33.93     40.43    32.99     41.36
-#>  0.25    36.74    33.56     39.92    32.64     40.84
+#>  0.00    38.80    35.11     42.50    33.94     43.67
+#>  0.05    38.38    34.70     42.06    33.53     43.23
+#>  0.10    37.78    34.22     41.35    33.09     42.48
+#>  0.15    37.12    33.68     40.56    32.59     41.65
+#>  0.20    36.46    33.07     39.85    31.99     40.92
+#>  0.25    35.84    32.40     39.28    31.30     40.37
 term_heatmap(surface, layers = worsening)
 ```
 
@@ -666,8 +697,8 @@ term_curves(paths)
 ![](feature_tour_files/figure-gfm/layer-family-3.png)<!-- -->
 
 **Check:** the paths run from upper left to lower right, with arrows in
-the first plot and without in the last; `term_curves()` shows LVEF along
-each path.
+the first heatmap and without in the second; `term_curves()` shows LVEF
+along each path.
 
 ## 11. Testing a reference curve: `test_simultaneous_predictions()` *(from p-ggeffects)*
 
@@ -680,24 +711,24 @@ flat
 #> Simultaneous test: does the reference function fit inside the 95% band?
 #> Held constant: age = 60 (median), sex = Male (most common), diabetes =
 #>   No (most common)
-#> max |t| = 3.24, p = 0.024
-#> The reference lies inside the band at 100 of 120 grid points.
+#> max |t| = 3.83, p = 0.0043
+#> The reference lies inside the band at 98 of 120 grid points.
 #> 
 #>  creatinine sodium estimate reference band.low band.high inside
-#>      0.5000    130    23.24        38   -8.622     55.11   TRUE
-#>      0.5897    130    26.44        38    1.841     51.03   TRUE
-#>      0.6795    130    29.47        38   11.540     47.39   TRUE
-#>      0.7692    130    32.17        38   19.707     44.63   TRUE
-#>      0.8590    130    34.38        38   25.347     43.40   TRUE
-#>      0.9487    130    35.93        38   27.863     43.99   TRUE
-#>      1.0385    130    36.66        38   28.358     44.97   TRUE
-#>      1.1282    130    36.62        38   28.311     44.93   TRUE
-#>      1.2179    130    36.07        38   28.207     43.93   TRUE
-#>      1.3077    130    35.30        38   28.032     42.57   TRUE
+#>      0.5000    130    24.81        38  -9.4039     59.02   TRUE
+#>      0.5897    130    27.53        38   0.8687     54.19   TRUE
+#>      0.6795    130    30.25        38  10.7810     49.72   TRUE
+#>      0.7692    130    32.94        38  19.6573     46.22   TRUE
+#>      0.8590    130    35.30        38  25.3553     45.25   TRUE
+#>      0.9487    130    36.92        38  26.8189     47.03   TRUE
+#>      1.0385    130    37.40        38  26.7236     48.08   TRUE
+#>      1.1282    130    36.80        38  26.9289     46.68   TRUE
+#>      1.2179    130    35.77        38  27.2645     44.27   TRUE
+#>      1.3077    130    34.77        38  27.3289     42.22   TRUE
 attr(flat, "all_inside")
 #> [1] FALSE
 attr(flat, "p_value")
-#> [1] 0.02409759
+#> [1] 0.00429957
 plot(flat)
 ```
 

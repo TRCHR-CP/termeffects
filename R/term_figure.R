@@ -139,9 +139,14 @@ print.term_figure <- function(x, ...) {
   } else {
     "linear regression"
   }
-  n <- tryCatch(stats::nobs(model), error = function(e) NA)
+  # nobs() of a Cox model is the number of events
+  n <- if (inherits(model, "coxph") && !is.null(model$n)) {
+    paste0(model$n, if (identical(ncol(model$y), 3L)) " rows" else "", ", ", model$nevent, " events")
+  } else {
+    tryCatch(stats::nobs(model), error = function(e) NA)
+  }
   paste0(if (pm) "parameterized " else "", type,
-         if (!is.na(n)) paste0(", n = ", n), ": ",
+         if (!is.na(n[1])) paste0(", n = ", n), ": ",
          paste(deparse(stats::formula(model), width.cutoff = 500), collapse = " "))
 }
 

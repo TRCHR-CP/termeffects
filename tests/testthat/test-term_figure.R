@@ -34,3 +34,11 @@ test_that("captions describe additive surfaces and orm models", {
   expect_match(fig$model, "proportional odds model (rms::orm), n = 299", fixed = TRUE)
   expect_match(fig$caption, "Mean ejection_fraction")
 })
+
+test_that("Cox model descriptions give patients and events, not nobs()", {
+  skip_if_not_installed("survival")
+  hf <- heartfailure
+  hf$died <- as.numeric(hf$death_event == "Yes")
+  fit <- survival::coxph(survival::Surv(time, died) ~ creatinine + sodium, data = hf)
+  expect_match(termeffects:::.model_description(fit), "n = 299, 96 events", fixed = TRUE)
+})
