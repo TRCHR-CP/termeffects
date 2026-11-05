@@ -1,0 +1,396 @@
+---
+title: "Do the simultaneous bands cover? A simulation study"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+vignette: >
+  %\VignetteIndexEntry{Do the simultaneous bands cover? A simulation study}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7, fig.height = 4,
+                      message = FALSE, warning = FALSE, echo = FALSE,
+                      eval = requireNamespace("rms", quietly = TRUE))
+```
+
+termeffects draws **simultaneous confidence bands**: bands that are meant to
+contain the *whole* true surface, or all true curves, at once with 95%
+probability. Ordinary (pointwise) 95% intervals only cover each single point
+with 95% probability; over a surface of hundreds of points, some of them will
+almost always miss. This vignette reports a simulation study that checks
+whether the bands achieve their nominal coverage, for the model types and
+interval methods termeffects offers. It is written so that it can serve as
+the simulation section of a publication; it is structured following Morris,
+White and Crowther (2019) ("ADEMP": aims, data-generating mechanisms,
+estimands, methods, performance measures).
+
+The study itself runs for about two hours and is not re-run when this
+vignette is built: the code is `validation/11_coverage_study.R` in the
+package sources, and its results are stored with the vignette
+(`coverage_study_results.csv`).
+
+## Aims
+
+To estimate the coverage probability of termeffects' 95% simultaneous
+confidence bands for a non-linear interaction between two continuous
+predictors,
+
+* for the main model types: linear regression, logistic regression, Cox
+  regression, the proportional odds model (`rms::orm`), and a linear mixed
+  model,
+* for both interval methods: the analytic band (simulated sup-t critical
+  value) and the bootstrap band,
+* for a whole prediction surface (heatmap) and for a set of curves (cuts),
+* at a small and a moderate sample size,
+
+and to show how far pointwise intervals fall short of covering a whole
+surface or set of curves.
+
+## Data-generating mechanisms
+
+**Predictors.** Two focal predictors with standard normal distributions and
+correlation 0.4, and one adjustment covariate, also standard normal and
+correlated 0.3 with the second:
+
+$$x_1 \sim N(0, 1), \quad x_2 = 0.4\,x_1 + \sqrt{1 - 0.4^2}\,\varepsilon_2, \quad
+w = 0.3\,x_2 + \sqrt{1 - 0.3^2}\,\varepsilon_3.$$
+
+**True surface.** The effect of $x_1$ and $x_2$ is a non-linear interaction.
+Its true form is defined in two steps. First, a smooth target
+
+$$g(x_1, x_2) = 0.8 \tanh(1.5\,x_1) + 0.4\,x_2 + 0.5 \tanh(x_1)\,x_2 - 0.2\,x_2^2,$$
+
+which levels off in $x_1$, is curved in $x_2$, and in which the effect of
+$x_2$ depends on $x_1$. Second, the true surface $f(x_1, x_2)$ is the best
+approximation of $g$ (least squares over 200,000 draws of the predictors) by
+the model that is fitted later: restricted cubic splines with 4 knots in each
+predictor and their full tensor-product interaction,
+`rcs(x1, k) * rcs(x2, k)`, with the knots fixed at the 5%, 35%, 65% and 95%
+quantiles of the standard normal (the default positions of Harrell, 2015).
+The fitted models are therefore correctly specified: the study measures the
+inference, not the error of approximating a curve by splines.
+
+```{r truth, fig.height = 3.6, fig.width = 5}
+suppressMessages(library(rms))
+library(ggplot2)
+RNGkind("L'Ecuyer-CMRG")
+set.seed(20261105)
+population <- function(n) {
+  x1 <- rnorm(n)
+  x2 <- 0.4 * x1 + sqrt(1 - 0.4^2) * rnorm(n)
+  w <- 0.3 * x2 + sqrt(1 - 0.3^2) * rnorm(n)
+  data.frame(x1 = x1, x2 = x2, w = w)
+}
+knots <- qnorm(c(0.05, 0.35, 0.65, 0.95))
+g <- function(x1, x2) 0.8 * tanh(1.5 * x1) + 0.4 * x2 + 0.5 * tanh(x1) * x2 - 0.2 * x2^2
+pop <- population(2e5)
+pop$g <- g(pop$x1, pop$x2)
+truth_fit <- lm(g ~ rcs(x1, knots) * rcs(x2, knots), data = pop)
+q <- qnorm(c(0.05, 0.95))
+surface <- expand.grid(x1 = seq(q[1], q[2], length.out = 60), x2 = seq(q[1], q[2], length.out = 60))
+surface$f <- predict(truth_fit, surface)
+ggplot(surface, aes(x1, x2, fill = f, z = f)) +
+  geom_raster() +
+  geom_contour(colour = "white", linewidth = 0.3, bins = 8) +
+  scale_fill_viridis_c() +
+  labs(x = expression(x[1]), y = expression(x[2]), fill = "f",
+       title = "True surface f (central 90% of x1, x2)") +
+  coord_equal() +
+  theme_minimal()
+```
+
+**Outcomes.** With linear predictor $\eta = f(x_1, x_2) + 0.5\,w$:
+
+| Model | Outcome | Fitted with |
+|:--|:--|:--|
+| linear | $y = \eta + \varepsilon$, $\varepsilon \sim N(0, 1)$ | `lm()` |
+| logistic | $y \sim \text{Bernoulli}(\text{logit}^{-1}(\eta - 1))$ | `glm(family = binomial)` |
+| Cox | event time exponential with hazard $0.1\,e^{\eta}$, censoring uniform on (0, 15) | `survival::coxph()` |
+| proportional odds | $y = \eta + \varepsilon$, $\varepsilon$ logistic with scale 0.5 (continuous $y$) | `rms::orm()` |
+| linear mixed | $y = \eta + u_j + \varepsilon$, clusters $j$ of 10, $u_j \sim N(0, 0.8^2)$, $\varepsilon \sim N(0, 1)$ | `lme4::lmer()`, random intercept |
+
+All models are fitted with the formula `rcs(x1, k) * rcs(x2, k) + w`
+(15 coefficients for the interaction surface, plus $w$).
+
+**Sample sizes.** $n$ = 300 and $n$ = 1000. The number of events (logistic,
+Cox) is shown with the results.
+
+## Estimands
+
+The true values of the linear predictor (for the proportional odds model:
+the mean of $y$) at the points of two grids, with $w$ held at its sample
+median, as termeffects does by default:
+
+* **surface**: a 20 × 20 grid over the central 90% of $x_1$ and $x_2$
+  (400 points), as shown in a heatmap;
+* **curves**: three curves along $x_1$ (30 points each, central 90%), at
+  $x_2 = -1, 0, 1$ (90 points), as shown by `term_curves()`.
+
+For the Cox model the estimand is the log hazard ratio relative to the
+sample's average covariate vector, which is what `coxph` and termeffects
+report. Coverage on the link scale equals coverage on the response scale
+(probabilities, hazard ratios), because the bands are transformed with the
+same monotone function as the estimates.
+
+## Methods
+
+For each simulated data set the model is fitted and `term_predictions()` is
+called with the defaults (95% level, `ci_scope = "global"`, i.e. one band for
+the whole grid):
+
+* **Analytic band** (`ci_method = "analytic"`, the default). The critical
+  value $c$ is the 95% quantile of $\max_i |Z_i| / \mathrm{SE}_i$ over the grid
+  points, where $Z$ is multivariate normal with the covariance of the
+  estimated linear predictors, $X V X^\top$ (multivariate $t$ for linear
+  models); it is estimated from 5000 simulated draws. The band is
+  $\hat\eta_i \pm c\,\mathrm{SE}_i$. This is the sup-t or Working–Hotelling-type
+  band (e.g. Ruppert, Wand and Carroll, 2003; Montiel Olea and
+  Plagborg-Møller, 2019).
+* **Bootstrap band** (`ci_method = "bootstrap"`; not for the mixed model, as
+  clusters would have to be resampled). The model is refitted on 500
+  resamples of the rows (for `orm`, with `rms::bootcov()`), with the spline
+  knots fixed at those of the original fit. $\mathrm{SE}_i$ is the standard
+  deviation of the bootstrap predictions, and $c$ is the 95% quantile of
+  $\max_i |\hat\eta^*_i - \hat\eta_i| / \mathrm{SE}_i$ over the resamples.
+* **Pointwise intervals**, for comparison: $\hat\eta_i \pm 1.96\,\mathrm{SE}_i$
+  ($t$ quantile for linear models).
+
+**Number of repetitions.** 1000 data sets per scenario for the analytic
+band, and 500 for the bootstrap band (which takes about 500 times longer).
+With 1000 repetitions, the Monte Carlo standard error of a coverage of 95% is
+0.7 percentage points; with 500, 1.0.
+
+## Performance measures
+
+* **Simultaneous coverage**: the proportion of data sets in which the band
+  contains the true value at *all* grid points. Target: 95%. Reported with
+  its Monte Carlo standard error.
+* **Joint coverage of pointwise intervals**: the same, for the pointwise
+  intervals; shows what is lost without a simultaneous band.
+* **Average pointwise coverage**: the proportion of grid points covered by
+  the pointwise intervals, averaged over data sets. Target: 95%; checks the
+  standard errors themselves.
+* **Critical value**: the average simultaneous critical value, compared with
+  1.96, shows how much wider the band is than pointwise intervals.
+
+## Results
+
+```{r results}
+res <- read.csv("coverage_study_results.csv")
+res$model <- factor(res$outcome, levels = c("linear", "logistic", "cox", "orm", "mixed"),
+                    labels = c("Linear", "Logistic", "Cox", "Proportional odds", "Linear mixed"))
+res$method <- factor(res$method, levels = c("analytic", "bootstrap"), labels = c("Analytic", "Bootstrap"))
+res$estimand <- factor(res$estimand, levels = c("surface", "curves"),
+                       labels = c("Surface (400 points)", "Three curves (90 points)"))
+```
+
+```{r coverage-plot, fig.height = 5}
+ggplot(res, aes(coverage_band, model, colour = factor(n), shape = factor(n))) +
+  annotate("rect", xmin = 0.95 - 1.96 * sqrt(0.95 * 0.05 / 1000), xmax = 0.95 + 1.96 * sqrt(0.95 * 0.05 / 1000),
+           ymin = -Inf, ymax = Inf, fill = "grey85") +
+  geom_vline(xintercept = 0.95, linetype = "dashed") +
+  geom_errorbarh(aes(xmin = coverage_band - 1.96 * mcse_band, xmax = coverage_band + 1.96 * mcse_band),
+                 height = 0, position = position_dodge(width = 0.5)) +
+  geom_point(size = 2.5, position = position_dodge(width = 0.5)) +
+  facet_grid(method ~ estimand) +
+  scale_colour_manual(values = c("300" = "#E69F00", "1000" = "#0072B2")) +
+  scale_x_continuous(labels = function(b) paste0(100 * b, "%")) +
+  labs(x = "Simultaneous coverage (with 95% Monte Carlo interval)", y = NULL,
+       colour = "n", shape = "n",
+       caption = "Dashed: nominal 95%. Grey: range expected by chance with 1000 repetitions.") +
+  theme_minimal() +
+  theme(legend.position = "top")
+```
+
+```{r table}
+tab <- res[order(res$method, res$estimand, res$model, res$n), ]
+pct <- function(p) sprintf("%.1f", 100 * p)
+knitr::kable(data.frame(
+  Method = tab$method, Estimand = sub(" \\(.*", "", tab$estimand), Model = tab$model, n = tab$n,
+  Events = ifelse(is.na(tab$events), "", sprintf("%.0f", tab$events)),
+  Runs = tab$runs,
+  `Simultaneous (%)` = paste0(pct(tab$coverage_band), " (", pct(tab$mcse_band), ")"),
+  `Pointwise, all points (%)` = pct(tab$coverage_pointwise_all),
+  `Pointwise, per point (%)` = pct(tab$coverage_pointwise_mean),
+  `Critical value` = sprintf("%.2f", tab$critical_value),
+  check.names = FALSE, row.names = NULL),
+  caption = paste("Coverage of 95% simultaneous bands and pointwise intervals.",
+                  "Simultaneous: proportion of data sets in which the band covers the true values at all",
+                  "grid points (Monte Carlo standard error). Pointwise, all points: the same for pointwise",
+                  "intervals. Pointwise, per point: average proportion of points covered. Events: average",
+                  "number of events (logistic, Cox)."))
+```
+
+```{r helpers}
+raw <- read.csv("coverage_study_results.csv")
+cox <- read.csv("coverage_study_cox.csv")
+# coverage (in %) of one scenario, e.g. cv("cox", 300, "surface")
+cv <- function(outcome, n, estimand, method = "analytic", what = "coverage_band") {
+  v <- raw[raw$outcome == outcome & raw$n == n & raw$estimand == estimand & raw$method == method, what]
+  sprintf("%.1f%%", 100 * v)
+}
+rng <- function(rows, what = "coverage_band", digits = 1, scale = 100) {
+  v <- scale * range(raw[rows, what])
+  paste0(sprintf(paste0("%.", digits, "f"), v[1]), "–", sprintf(paste0("%.", digits, "f"), v[2]))
+}
+an <- raw$method == "analytic"
+bo <- raw$method == "bootstrap"
+failed_analytic <- sum(raw$failed[an & raw$estimand == "surface"])
+failed_boot <- sum(raw$failed[bo & raw$estimand == "surface"])
+```
+
+### Analytic bands
+
+* **Linear models** reach the nominal level: `r rng(an & raw$outcome == "linear")`%
+  over both sample sizes and estimands. This is the case in which the band is
+  exact apart from the simulation of the critical value, so it also confirms
+  the implementation.
+* **Linear mixed models**: `r rng(an & raw$outcome == "mixed")`%: about one
+  percentage point below 95% with 30 clusters (n = 300), and at the nominal
+  level with 100 clusters.
+* **Logistic regression** (`r rng(an & raw$outcome == "logistic", "events", 0, 1)`
+  events on average) and the **proportional odds model** are slightly
+  conservative: `r rng(an & raw$outcome == "logistic")`% and
+  `r rng(an & raw$outcome == "orm")`%.
+* **Cox regression** covers less than 95%: for the surface
+  `r cv("cox", 300, "surface")` at n = 300 and `r cv("cox", 1000, "surface")`
+  at n = 1000, for the curves `r cv("cox", 300, "curves")` and
+  `r cv("cox", 1000, "curves")`.
+
+The Cox result needed a closer look: is it a property of the Cox model in
+small samples, or an error? A follow-up study
+(`validation/12_coverage_cox_sample_size.R`, same data-generating mechanism,
+surface estimand, 1000 new data sets per sample size) also recorded the
+average standardized error $(\hat\eta_i - \eta_i)/\mathrm{SE}_i$ over the
+grid, which should be 0:
+
+```{r cox-follow-up}
+knitr::kable(data.frame(
+  n = cox$n, Events = sprintf("%.0f", cox$events),
+  `Events per coefficient` = sprintf("%.0f", cox$events / 16),
+  `Mean standardized error (MCSE)` = sprintf("%.3f (%.3f)", cox$mean_standardized_error,
+                                             cox$mcse_mean_standardized_error),
+  `Simultaneous coverage (MCSE)` = sprintf("%.1f%% (%.1f)", 100 * cox$coverage_band, 100 * cox$mcse_band),
+  `Pointwise, per point` = sprintf("%.1f%%", 100 * cox$coverage_pointwise_mean),
+  check.names = FALSE),
+  caption = "Cox model, analytic band for the surface, by sample size (16 coefficients).")
+```
+
+The estimates lie systematically above the truth, by
+`r sprintf("%.2f", cox$mean_standardized_error[1])` standard errors on
+average at n = 300. This bias shrinks steadily with n (by a factor of about
+two from n = 300 to 1000, and again from 1000 to 4000), as expected for the
+small-sample bias of maximum likelihood estimates, which is of order $1/n$
+and therefore of order $1/\sqrt{n}$ in units of the standard error (Firth,
+1993; Heinze and Schemper, 2001). Coverage rises with it, to
+`r sprintf("%.1f%%", 100 * cox$coverage_band[3])` at n = 4000. An error in
+the band's construction would not disappear with growing n. With about 9
+events per coefficient (n = 300) the Cox band is too narrow; with about 30 it
+is close to, but still below, the nominal level. (At n = 300 the two studies
+estimate the surface coverage as `r cv("cox", 300, "surface")` and
+`r sprintf("%.1f%%", 100 * cox$coverage_band[1])`; the difference is about
+two Monte Carlo standard errors.)
+
+### Bootstrap bands
+
+The bootstrap bands are **conservative**: for logistic and Cox regression
+they covered the truth in
+`r rng(bo & raw$outcome %in% c("logistic", "cox"))`% of data sets, with
+critical values of
+`r rng(bo & raw$outcome %in% c("logistic", "cox"), "critical_value", 2, 1)`
+instead of about 3.0–3.3 for the analytic bands, and even the pointwise intervals built from the
+bootstrap standard errors covered more than 95% of points
+(`r rng(bo & raw$outcome %in% c("logistic", "cox"), "coverage_pointwise_mean")`%).
+In resamples, sparse regions of the grid occasionally get extreme estimates
+(e.g. near-separation in logistic regression), which inflates both the
+bootstrap standard errors and the maximum over the grid. The effect is
+largest at n = 300 and smaller at n = 1000. For linear and proportional odds
+models the bootstrap bands are close to nominal or slightly conservative
+(`r rng(bo & raw$outcome %in% c("linear", "orm"))`%). The bootstrap
+therefore did not give too narrow bands, but often much wider ones than
+needed; the analytic band is preferable, and the bootstrap is useful as a
+check where the model's own standard errors are in doubt.
+
+### Pointwise intervals
+
+Pointwise 95% intervals covered about 95% of the points each
+(`r rng(an, "coverage_pointwise_mean")`% per point for the analytic
+intervals), but contained the whole true surface in only
+`r rng(an & raw$estimand == "surface", "coverage_pointwise_all", 0)`% of data
+sets, and all three curves in
+`r rng(an & raw$estimand == "curves", "coverage_pointwise_all", 0)`%. Reading
+a heatmap or a set of curves with pointwise intervals therefore overstates
+the precision of the shape. The simultaneous critical values were about
+`r rng(an & raw$estimand == "surface", "critical_value", 1, 1)` for the
+surface and `r rng(an & raw$estimand == "curves", "critical_value", 1, 1)` for
+the curves, i.e. the simultaneous bands are about 1.5–1.7 times as wide as
+pointwise intervals.
+
+### Failed fits
+
+`rms::orm()` did not converge in `r failed_analytic` of 2000 data sets
+(analytic scenarios) and `r failed_boot` of 1000 (bootstrap scenarios); these
+data sets are excluded. All other fits succeeded.
+
+## Conclusions
+
+* termeffects' analytic simultaneous bands achieve their nominal 95%
+  coverage for linear and linear mixed models, and are slightly conservative
+  for logistic and proportional odds models, both for whole surfaces and for
+  sets of curves.
+* For Cox models with few events per coefficient the bands are too narrow,
+  because of the small-sample bias of the Cox estimates; coverage approaches
+  95% as the number of events grows. With complex spline interactions in Cox
+  models, plan for many events, or read the bands as approximate.
+* Bootstrap bands never under-covered here but were often much wider than
+  needed, especially for logistic and Cox models at n = 300.
+* Pointwise intervals cover the whole surface far less often than 95%;
+  simultaneous bands are needed to read the shape of a surface or to compare
+  curves.
+
+**Limitations.** One data-generating mechanism (one true surface, two
+correlated normal predictors), correctly specified models with prespecified
+knots (data-driven knot choice and model selection are not part of the
+inference), grids restricted to the central 90% of each predictor, two
+sample sizes (three for Cox), and random-intercept models only. Coverage in
+regions with very few observations, e.g. corners of a heatmap outside the
+bulk of the data, may be worse than reported here.
+
+
+## Reproducing the study
+
+```r
+# from the package source folder; about 2 hours on 7 cores
+Sys.setenv(OPENBLAS_NUM_THREADS = 1)   # or set it before starting R
+source("validation/11_coverage_study.R")
+```
+
+The script writes the per-run results to
+`validation/output/11_coverage_runs.csv`, any failed fits to
+`validation/output/11_coverage_failures.csv`, the R session information to
+`validation/output/11_session_info.txt`, and the summary used here to
+`vignettes/coverage_study_results.csv`. The Cox follow-up is
+`validation/12_coverage_cox_sample_size.R` (about 15 minutes), which writes
+`vignettes/coverage_study_cox.csv`.
+
+## References
+
+Harrell FE (2015). *Regression Modeling Strategies*, 2nd ed. Springer.
+
+Montiel Olea JL, Plagborg-Møller M (2019). Simultaneous confidence bands:
+theory, implementation, and an application to SVARs. *Journal of Applied
+Econometrics* 34:1–17.
+
+Morris TP, White IR, Crowther MJ (2019). Using simulation studies to evaluate
+statistical methods. *Statistics in Medicine* 38:2074–2102.
+
+Ruppert D, Wand MP, Carroll RJ (2003). *Semiparametric Regression*.
+Cambridge University Press.
+
+Firth D (1993). Bias reduction of maximum likelihood estimates. *Biometrika*
+80:27–38.
+
+Heinze G, Schemper M (2001). A solution to the problem of monotone likelihood
+in Cox regression. *Biometrics* 57:114–119.

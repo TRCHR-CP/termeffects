@@ -5,6 +5,40 @@ user-facing summary; this log also covers decisions, validation and tooling.
 
 ---
 
+## 2026-11-05 — Coverage simulation study (new vignette)
+
+Brigitte asked for a coverage simulation, described so that it can be used
+for the publication. Motivation: the bootstrap-knots bug showed that tests
+comparing with `predict()` do not check the bands themselves.
+
+- `validation/11_coverage_study.R`: ADEMP-structured study (Morris et al.
+  2019). True surface = projection of a smooth non-linear interaction onto
+  `rcs(x1, k) * rcs(x2, k)` with fixed knots (correctly specified models);
+  covariate w; linear, logistic, Cox, orm, linear mixed (random intercept);
+  n = 300 and 1000; analytic bands (1000 runs) and bootstrap bands (500
+  runs, nboot = 500; not for the mixed model); estimands: 20 x 20 surface
+  and three curves. About 3.5 hours on 7 cores (orm bootstrap dominates).
+- `validation/12_coverage_cox_sample_size.R`: follow-up for Cox (n = 300,
+  1000, 4000; mean standardized error and coverage).
+- `vignettes/coverage_study.Rmd` (+ `coverage_study_results.csv`,
+  `coverage_study_cox.csv`): methods, results table and figure,
+  interpretation, limitations, references. Numbers in the text are computed
+  from the CSV files.
+
+Results:
+- Analytic bands: linear 95.0–95.8%, mixed 93.6–94.7%, logistic 96.4–97.5%,
+  orm 95.8–97.1%.
+- **Cox analytic bands under-cover**: surface 84% (n = 300, ~9 events per
+  coefficient) and 92% (n = 1000); follow-up 87%, 93%, 94% at n = 300, 1000,
+  4000. Standardized bias 0.18, 0.09, 0.04: shrinks with n, so this is the
+  small-sample bias of the Cox estimates, not an implementation error.
+  Possible future work: Firth-corrected Cox (coxphf) or a warning for few
+  events per coefficient.
+- Bootstrap bands are conservative, strongly so for logistic and Cox at
+  n = 300 (up to 100%), close to nominal for linear and orm.
+- Pointwise intervals cover the whole surface in only 15–34% of data sets.
+- orm failed to converge in 8 of 3000 data sets (excluded, reported).
+
 ## 2026-11-05 — Restricted cubic splines in all vignettes; `%ia%` guard
 
 Brigitte's team uses restricted cubic splines, so every vignette now uses

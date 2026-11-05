@@ -1,0 +1,19 @@
+"outcome","n","method","failed","first_error"
+"linear",300,"analytic",0,NA
+"logistic",300,"analytic",0,NA
+"cox",300,"analytic",0,NA
+"orm",300,"analytic",4,"no terms component nor attribute"
+"mixed",300,"analytic",0,NA
+"linear",1000,"analytic",0,NA
+"logistic",1000,"analytic",0,NA
+"cox",1000,"analytic",0,NA
+"orm",1000,"analytic",1,"no terms component nor attribute"
+"mixed",1000,"analytic",0,NA
+"linear",300,"bootstrap",0,NA
+"logistic",300,"bootstrap",0,NA
+"cox",300,"bootstrap",0,NA
+"orm",300,"bootstrap",0,NA
+"linear",1000,"bootstrap",0,NA
+"logistic",1000,"bootstrap",0,NA
+"cox",1000,"bootstrap",0,NA
+"orm",1000,"bootstrap",3,"no terms component nor attribute"
