@@ -5,6 +5,25 @@ user-facing summary; this log also covers decisions, validation and tooling.
 
 ---
 
+## 2026-11-05 — Landmark example: absolute risk after 1 year
+
+Brigitte asked whether the time-dependent Cox heatmap should show landmark
+predictions at 1 year. Decision: the hazard-ratio heatmap stays as it is
+(with time-fixed coefficients, the HR for given current values is the same at
+any time, so a landmark changes nothing). What a landmark adds is an
+**absolute risk**, which a time-dependent Cox model cannot give directly
+(future lab values are unknown).
+
+- `model_types.Rmd`: new subsection "Absolute risk at a landmark (without
+  bands)": patients alive and in follow-up at 1 year (290, 103 later deaths),
+  lab values in effect at 1 year, Cox model for time since the landmark
+  (`ns(log(bili), 3) * albumin + age`), 2-year risk from `survfit()`, heatmap
+  drawn with ggplot2. Notes for publications (estimates only, held age,
+  choice of landmark and horizon, population = alive at the landmark).
+- No package code changed: termeffects does not predict absolute risks.
+  Absolute-risk predictions with simultaneous bands remain a possible future
+  feature (would need its own validation).
+
 ## 2026-11-04 — More model types; rendered vignettes
 
 Brigitte asked for: logistic regression, Cox regression, extended Cox with

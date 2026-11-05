@@ -230,6 +230,80 @@ person-time intervals rather than over patients. Bootstrap intervals are
 refused for these data, because rows of the same patient are not
 independent.
 
+### Absolute risk at a landmark (without bands)
+
+A hazard ratio is relative: it says how much higher the hazard is than
+for an average patient, not how likely death is. For a publication, the
+absolute risk is often more useful, e.g. *“a patient alive at 1 year,
+with these lab values, has a 25% risk of dying within the next 2
+years”*.
+
+The model above cannot give this directly. Its hazard depends on the
+**current** lab values, so a risk over the next 2 years would need the
+lab values over those 2 years, which are not known yet. The usual
+solution is a **landmark analysis** (van Houwelingen, *Scand J Stat*
+2007): choose a time point (the landmark, here 1 year), keep the
+patients still alive and in follow-up at that time, take their most
+recent lab values, and fit an ordinary Cox model for the time **from the
+landmark** onwards. From that model, the predicted 2-year risk for given
+lab values is 1 minus the predicted survival at 2 years.
+
+termeffects does not compute absolute risks (yet), so here we predict
+with survival’s `survfit()` and draw the heatmap with ggplot2. The
+interaction is simpler than above (albumin linear), because the landmark
+data have fewer events.
+
+``` r
+landmark <- 365.25  # days
+lm_data <- subset(pbc2, tstart <= landmark & tstop > landmark)  # the row in effect at 1 year
+lm_data <- merge(lm_data[c("id", "age", "bili", "albumin")], base[c("id", "time", "status")])
+lm_data$years <- (lm_data$time - landmark) / 365.25              # time since the landmark
+lm_data$died <- lm_data$status == 2
+c(patients = nrow(lm_data), deaths = sum(lm_data$died))
+#> patients   deaths 
+#>      290      103
+
+fit_lm <- coxph(Surv(years, died) ~ ns(log(bili), 3) * albumin + age, data = lm_data)
+
+grid <- expand.grid(bili = exp(seq(log(0.4), log(15), length.out = 40)),
+                    albumin = seq(2.5, 4.4, length.out = 40),
+                    age = median(lm_data$age))
+grid$risk <- 1 - summary(survfit(fit_lm, newdata = grid), times = 2)$surv[1, ]
+
+library(ggplot2)
+ggplot(grid, aes(bili, albumin)) +
+  geom_raster(aes(fill = risk)) +
+  geom_contour(aes(z = risk), breaks = c(0.1, 0.25, 0.5), colour = "white", linewidth = 0.3) +
+  geom_point(data = lm_data, size = 0.6, alpha = 0.5) +
+  scale_x_log10() +
+  scale_fill_viridis_c(labels = scales::percent, limits = c(0, 1)) +
+  labs(x = "Bilirubin at 1 year (mg/dl, log scale)", y = "Albumin at 1 year (g/dl)",
+       fill = "Risk of death\nwithin 2 years",
+       subtitle = paste0("Patients alive at 1 year; age held at ", round(median(lm_data$age)), " years")) +
+  theme_minimal()
+```
+
+![](model_types_files/figure-gfm/landmark-1.png)<!-- -->
+
+**Check:** 290 patients were alive and in follow-up at 1 year, and 103
+of them died later. The 2-year risk is a few percent for a low bilirubin
+and rises to over 50% for a bilirubin above about 10; at the same
+bilirubin, a lower albumin goes with a higher risk. The white lines mark
+10%, 25% and 50% risk. The bump in the lower left lies where there are
+almost no patients; there, as at the edges, the surface is not reliable.
+
+Some points for a publication:
+
+- The figure shows estimates only. `summary(survfit(...))` also gives
+  pointwise standard errors of the survival (`std.err`), which could be
+  shown as a second heatmap, but there is no simultaneous band as
+  termeffects gives for hazard ratios.
+- The risk depends on the held covariates (here age) and on the landmark
+  and horizon chosen; say so in the caption. Several landmarks (e.g. 1,
+  2 and 3 years) can be shown side by side.
+- Patients included are those alive at the landmark, so the risks apply
+  to such patients, not to patients at diagnosis.
+
 ## Repeated measurements: mixed models and GEE
 
 ### The data: bilirubin over time in primary biliary cirrhosis
@@ -304,9 +378,12 @@ anova(fit_same, update(fit_lmer, REML = FALSE))
 #> Models:
 #> fit_same: log(bili) ~ ns(years, 3) + treatment + ns(age, 3) + sex + (1 + years | id) + ns(years, 3):ns(age, 3)
 #> update(fit_lmer, REML = FALSE): log(bili) ~ ns(years, 3) * (treatment + ns(age, 3)) + sex + (1 + years | id)
-#>                                npar    AIC    BIC  logLik -2*log(L)  Chisq Df Pr(>Chisq)
-#> fit_same                         22 3072.5 3195.1 -1514.3    3028.5                     
-#> update(fit_lmer, REML = FALSE)   25 3074.7 3214.0 -1512.3    3024.7 3.8496  3     0.2782
+#>                                npar    AIC    BIC  logLik -2*log(L)  Chisq Df
+#> fit_same                         22 3072.5 3195.1 -1514.3    3028.5          
+#> update(fit_lmer, REML = FALSE)   25 3074.7 3214.0 -1512.3    3024.7 3.8496  3
+#>                                Pr(>Chisq)
+#> fit_same                                 
+#> update(fit_lmer, REML = FALSE)     0.2782
 ```
 
 The p-value of about 0.3 agrees with the trial’s conclusion:
@@ -470,4 +547,4 @@ ns(log(bili), 3) and albumin as ns(albumin, 3). They interact in the
 model (ns(log(bili), 3):ns(albumin, 3)). All other covariates are held
 constant: age = 48.9 (median). Curves: cuts through the surface at
 albumin = 3.0, 3.5, 4.0. Shaded: 95% simultaneous confidence band,
-covering all curves at once (critical value 2.98).
+covering all curves at once (critical value 2.95).
