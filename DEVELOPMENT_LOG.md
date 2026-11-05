@@ -23,6 +23,11 @@ any time, so a landmark changes nothing). What a landmark adds is an
 - No package code changed: termeffects does not predict absolute risks.
   Absolute-risk predictions with simultaneous bands remain a possible future
   feature (would need its own validation).
+- `feature_tour.Rmd`, section 9 (parameterized models): the example now uses
+  `log_creatinine` throughout (creatinine = exp(log_creatinine)) instead of a
+  second step to "doublings", which made the plots hard to read. Composition
+  of parameterizations is only mentioned, with a pointer to
+  `vignette("parameterized_models")`.
 
 ## 2026-11-04 — More model types; rendered vignettes
 

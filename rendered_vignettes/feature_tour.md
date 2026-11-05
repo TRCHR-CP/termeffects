@@ -494,10 +494,12 @@ eight with how each value was chosen.
 ## 9. Parameterized models *(from p-ggeffects)*
 
 A parameterized model gives the fitted model new inputs without
-refitting it. Here creatinine is described by its logarithm:
+refitting it. You say how the model’s variable is computed from the new
+one. Here the model uses creatinine, and we want to work with log
+creatinine, so creatinine = exp(log_creatinine):
 
 ``` r
-pfit <- parameterize(fit, list(creatinine = function(log_cr) exp(log_cr)))
+pfit <- parameterize(fit, list(creatinine = function(log_creatinine) exp(log_creatinine)))
 pfit
 #> Parameterized model
 #> 
@@ -533,119 +535,70 @@ pfit
 #> 
 #> 
 #> Parameters:
-#> [1] "log_cr"
+#> [1] "log_creatinine"
 #> 
 #> Parameterizations:
-#> $creatinine <- (exp(log_cr)); (log_cr)
+#> $creatinine <- (exp(log_creatinine)); (log_creatinine)
 is.parameterized_model(pfit)
 #> [1] TRUE
 parameter_variables(pfit)
-#> [1] "log_cr"
+#> [1] "log_creatinine"
 parameterizations(pfit)
 #> $creatinine
-#> function (log_cr) 
-#> (exp(log_cr))
-#> <environment: 0x616db51d3df0>
+#> function (log_creatinine) 
+#> (exp(log_creatinine))
+#> <environment: 0x5746106f6530>
 class(original_model(pfit))
 #> [1] "lm"
-```
 
-Parameterizing again composes the two steps: here, log creatinine is
-given as the number of doublings from 1 mg/dL.
-
-``` r
-pfit2 <- parameterize(pfit, list(log_cr = function(doublings) doublings * log(2)))
-print(pfit2, show_history = TRUE)
-#> Parameterized model
-#> 
-#> Model:
-#> 
-#> Call:
-#> lm(formula = ejection_fraction ~ ns(creatinine, 3) * ns(sodium, 
-#>     3) + ns(age, 3) + sex + diabetes, data = hf)
-#> 
-#> Coefficients:
-#>                       (Intercept)                 ns(creatinine, 3)1  
-#>                         -270.9880                           -41.7106  
-#>                ns(creatinine, 3)2                 ns(creatinine, 3)3  
-#>                          928.3082                           908.3326  
-#>                    ns(sodium, 3)1                     ns(sodium, 3)2  
-#>                          168.9955                           594.0910  
-#>                    ns(sodium, 3)3                        ns(age, 3)1  
-#>                           88.1682                             1.5544  
-#>                       ns(age, 3)2                        ns(age, 3)3  
-#>                            5.2880                             7.5979  
-#>                           sexMale                        diabetesYes  
-#>                           -3.3220                            -0.1435  
-#> ns(creatinine, 3)1:ns(sodium, 3)1  ns(creatinine, 3)2:ns(sodium, 3)1  
-#>                           13.3967                          -439.6060  
-#> ns(creatinine, 3)3:ns(sodium, 3)1  ns(creatinine, 3)1:ns(sodium, 3)2  
-#>                         -368.2904                            60.1433  
-#> ns(creatinine, 3)2:ns(sodium, 3)2  ns(creatinine, 3)3:ns(sodium, 3)2  
-#>                        -1807.9032                         -1779.1195  
-#> ns(creatinine, 3)1:ns(sodium, 3)3  ns(creatinine, 3)2:ns(sodium, 3)3  
-#>                           35.1593                          -287.4718  
-#> ns(creatinine, 3)3:ns(sodium, 3)3  
-#>                         -330.1304  
-#> 
-#> 
-#> Parameters:
-#> [1] "doublings"
-#> 
-#> Parameterizations:
-#> $creatinine <- (exp(doublings * log(2))); (doublings)
-#> 
-#> 
-#> Parameterization history:
-#> 
-#> Stage 1                        Stage 2                        
-#> ----------------------------   -------------------------------
-#> 
-#> creatinine [exp(log_cr)] <─────┐
-#>                                log_cr [doublings * log(2)] <── doublings
-nd <- data.frame(doublings = c(-1, 0, 1, 2), sodium = 137, age = 60,
+nd <- data.frame(log_creatinine = log(c(0.5, 1, 2, 4)), sodium = 137, age = 60,
                  sex = "Male", diabetes = "No")
-parameterize_data(pfit2, nd)
-#>   doublings sodium age  sex diabetes creatinine
-#> 1        -1    137  60 Male       No        0.5
-#> 2         0    137  60 Male       No        1.0
-#> 3         1    137  60 Male       No        2.0
-#> 4         2    137  60 Male       No        4.0
-predict(pfit2, nd)
+parameterize_data(pfit, nd)
+#>   log_creatinine sodium age  sex diabetes creatinine
+#> 1     -0.6931472    137  60 Male       No        0.5
+#> 2      0.0000000    137  60 Male       No        1.0
+#> 3      0.6931472    137  60 Male       No        2.0
+#> 4      1.3862944    137  60 Male       No        4.0
+predict(pfit, nd)
 #>        1        2        3        4 
 #> 47.76279 37.04315 33.59173 35.69862
-predict(fit, transform(nd, creatinine = 2^doublings))
+predict(fit, transform(nd, creatinine = exp(log_creatinine)))
 #>        1        2        3        4 
 #> 47.76279 37.04315 33.59173 35.69862
 ```
 
 **Check:** `parameterize_data()` adds `creatinine` = 0.5, 1, 2, 4, and
-the two `predict()` calls give the same numbers.
+the two `predict()` calls give the same numbers. (A parameterized model
+can be parameterized again; the steps are then combined. See
+`vignette("parameterized_models")`.)
 
-Predictions and plots work as for an ordinary model. Without `values`,
-the range of a new variable is found by a search: a range centred at 0
-within which creatinine stays inside its observed range.
+Predictions and plots work as for an ordinary model, with log creatinine
+on the x-axis. Without `values`, the range of a new variable is found by
+a search: a range centred at 0 within which creatinine stays inside its
+observed range.
 
 ``` r
-p_surface <- term_predictions(pfit2, c("doublings", "sodium"))
-range(p_surface$doublings)
-#> [1] -0.89161  0.89161
+p_surface <- term_predictions(pfit, c("log_creatinine", "sodium"))
+range(p_surface$log_creatinine)
+#> [1] -0.6191736  0.6191736
 term_heatmap(p_surface, show_support = TRUE)
 ```
 
 ![](feature_tour_files/figure-gfm/parameterized-predictions-1.png)<!-- -->
 
 ``` r
-term_curves(term_predictions(pfit2, c("doublings", "sodium"),
-                             values = list(doublings = seq(-1, 2, length.out = 30),
+term_curves(term_predictions(pfit, c("log_creatinine", "sodium"),
+                             values = list(log_creatinine = seq(log(0.6), log(4), length.out = 30),
                                            sodium = c(130, 137, 142))))
 ```
 
 ![](feature_tour_files/figure-gfm/parameterized-predictions-2.png)<!-- -->
 
-**Check:** `doublings` runs from about −0.9 to 0.9, i.e. creatinine from
-0.54 to 1.86 mg/dL. Usually it is clearer to give the range with
-`values`, as in the second plot.
+**Check:** without `values`, `log_creatinine` runs from about −0.6 to
+0.6, i.e. creatinine from about 0.54 to 1.86 mg/dL: the search is
+centred at 0 (creatinine 1), so it stops where the lower end leaves the
+data, although creatinine goes up to 9.4. It is usually clearer to give
+the range with `values`, as in the second plot (creatinine 0.6 to 4).
 
 ## 10. Curves through a heatmap: `term_layer()` *(from p-ggeffects)*
 
@@ -661,15 +614,15 @@ head(worsening)
 #> Predictions over w ( 6 grid points, response scale )
 #> Held constant: age = 60 (median), sex = Male (most common), diabetes =
 #>   No (most common)
-#> Critical values for 95% intervals (analytic): pointwise 1.969, simultaneous 2.547
+#> Critical values for 95% intervals (analytic): pointwise 1.969, simultaneous 2.538
 #> 
 #>     w estimate conf.low conf.high band.low band.high
-#>  0.00    38.62    35.35     41.88    34.39     42.84
-#>  0.05    38.40    35.06     41.74    34.07     42.72
-#>  0.10    38.04    34.69     41.40    33.70     42.38
-#>  0.15    37.62    34.31     40.94    33.33     41.91
-#>  0.20    37.18    33.93     40.43    32.98     41.38
-#>  0.25    36.74    33.56     39.92    32.63     40.85
+#>  0.00    38.62    35.35     41.88    34.41     42.83
+#>  0.05    38.40    35.06     41.74    34.09     42.70
+#>  0.10    38.04    34.69     41.40    33.72     42.37
+#>  0.15    37.62    34.31     40.94    33.35     41.90
+#>  0.20    37.18    33.93     40.43    32.99     41.36
+#>  0.25    36.74    33.56     39.92    32.64     40.84
 term_heatmap(surface, layers = worsening)
 ```
 

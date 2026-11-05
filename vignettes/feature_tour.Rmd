@@ -294,49 +294,49 @@ each value was chosen.
 ## 9. Parameterized models *(from p-ggeffects)*
 
 A parameterized model gives the fitted model new inputs without refitting it.
-Here creatinine is described by its logarithm:
+You say how the model's variable is computed from the new one. Here the model
+uses creatinine, and we want to work with log creatinine, so creatinine =
+exp(log_creatinine):
 
 ```{r parameterize}
-pfit <- parameterize(fit, list(creatinine = function(log_cr) exp(log_cr)))
+pfit <- parameterize(fit, list(creatinine = function(log_creatinine) exp(log_creatinine)))
 pfit
 is.parameterized_model(pfit)
 parameter_variables(pfit)
 parameterizations(pfit)
 class(original_model(pfit))
-```
 
-Parameterizing again composes the two steps: here, log creatinine is given as
-the number of doublings from 1 mg/dL.
-
-```{r compose}
-pfit2 <- parameterize(pfit, list(log_cr = function(doublings) doublings * log(2)))
-print(pfit2, show_history = TRUE)
-nd <- data.frame(doublings = c(-1, 0, 1, 2), sodium = 137, age = 60,
+nd <- data.frame(log_creatinine = log(c(0.5, 1, 2, 4)), sodium = 137, age = 60,
                  sex = "Male", diabetes = "No")
-parameterize_data(pfit2, nd)
-predict(pfit2, nd)
-predict(fit, transform(nd, creatinine = 2^doublings))
+parameterize_data(pfit, nd)
+predict(pfit, nd)
+predict(fit, transform(nd, creatinine = exp(log_creatinine)))
 ```
 
 **Check:** `parameterize_data()` adds `creatinine` = 0.5, 1, 2, 4, and the two
-`predict()` calls give the same numbers.
+`predict()` calls give the same numbers. (A parameterized model can be
+parameterized again; the steps are then combined. See
+`vignette("parameterized_models")`.)
 
-Predictions and plots work as for an ordinary model. Without `values`, the
-range of a new variable is found by a search: a range centred at 0 within which
-creatinine stays inside its observed range.
+Predictions and plots work as for an ordinary model, with log creatinine on
+the x-axis. Without `values`, the range of a new variable is found by a
+search: a range centred at 0 within which creatinine stays inside its
+observed range.
 
 ```{r parameterized-predictions}
-p_surface <- term_predictions(pfit2, c("doublings", "sodium"))
-range(p_surface$doublings)
+p_surface <- term_predictions(pfit, c("log_creatinine", "sodium"))
+range(p_surface$log_creatinine)
 term_heatmap(p_surface, show_support = TRUE)
-term_curves(term_predictions(pfit2, c("doublings", "sodium"),
-                             values = list(doublings = seq(-1, 2, length.out = 30),
+term_curves(term_predictions(pfit, c("log_creatinine", "sodium"),
+                             values = list(log_creatinine = seq(log(0.6), log(4), length.out = 30),
                                            sodium = c(130, 137, 142))))
 ```
 
-**Check:** `doublings` runs from about −0.9 to 0.9, i.e. creatinine from 0.54
-to 1.86 mg/dL. Usually it is clearer to give the range with `values`, as in the
-second plot.
+**Check:** without `values`, `log_creatinine` runs from about −0.6 to 0.6,
+i.e. creatinine from about 0.54 to 1.86 mg/dL: the search is centred at 0
+(creatinine 1), so it stops where the lower end leaves the data, although
+creatinine goes up to 9.4. It is usually clearer to give the range with
+`values`, as in the second plot (creatinine 0.6 to 4).
 
 ## 10. Curves through a heatmap: `term_layer()` *(from p-ggeffects)*
 
