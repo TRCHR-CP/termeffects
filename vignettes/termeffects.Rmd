@@ -174,6 +174,60 @@ women <- term_predictions(fit, c("creatinine", "sodium"),
 term_curves(women)
 ```
 
+## One variable: a termplot with bands
+
+termeffects also works for a single spline variable, like base R's
+`termplot()`. Here is age in a linear model for ejection fraction:
+
+```{r one-variable-fit}
+fit_age <- lm(ejection_fraction ~ rcs(age, 4) + sex + rcs(creatinine, 4) + diabetes,
+              data = hf)
+```
+
+`termplot()` shows the spline term for age, centred to average zero, with
+pointwise ±2 standard error lines:
+
+```{r termplot, fig.height = 4}
+termplot(fit_age, terms = "rcs(age, 4)", se = TRUE, rug = TRUE)
+```
+
+termeffects shows the predicted ejection fraction over age, for a patient
+with the other covariates at their median or most common values, with both
+kinds of interval:
+
+```{r one-variable-curve}
+set.seed(3)
+age_curve <- term_predictions(fit_age, "age", n = 50)
+term_curves(age_curve, band = "both")
+```
+
+The two plots look the same in shape, but they differ in three ways:
+
+* **The y-axis.** `termplot()` shows the term's contribution, centred at
+  zero; termeffects shows the predicted outcome itself, here in percent
+  LVEF. In a linear model the two curves differ only by a constant (the
+  intercept plus the contributions of the other covariates at their held
+  values), so their shape is exactly the same.
+* **The pointwise intervals.** `termplot()` uses only the uncertainty of the
+  age coefficients, so its interval is narrowest near the average age.
+  termeffects' pointwise interval is for the prediction and also includes
+  the uncertainty of the intercept and of the other covariates'
+  coefficients, so it is wider, most of all in the middle of the age range
+  (here about twice as wide at age 64) and much less at the ends.
+  (`termplot()` draws ±2 standard errors; termeffects uses the exact
+  t-quantile.)
+* **The simultaneous band.** termeffects adds a band that holds for the whole
+  curve at once. It is the right interval for the questions people usually
+  ask of such a plot: *is the association non-linear?* (a straight line
+  fits inside the band) or *does the outcome change with age at all?* (a
+  horizontal line fits inside the band).
+
+For a logistic or Cox model, termeffects shows probabilities or hazard
+ratios by default, so the curve's shape also differs from `termplot()`,
+which works on the log-odds or log-hazard scale; `scale = "link"` gives the
+same scale as `termplot()`. `termplot()` does not work with `rms` fits such
+as `orm`; termeffects does.
+
 ## How the intervals for an orm model are computed
 
 For `orm` models, the default intervals are computed for the model's linear

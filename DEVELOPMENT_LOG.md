@@ -5,6 +5,19 @@ user-facing summary; this log also covers decisions, validation and tooling.
 
 ---
 
+## 2026-11-09 — Single-variable example (termplot comparison)
+
+Brigitte asked for an example with one rcs variable, like `termplot()`, and
+whether the intervals differ. New section "One variable: a termplot with
+bands" in `vignettes/termeffects.Rmd`: `lm` with `rcs(age, 4)`, `termplot()`
+next to `term_curves(band = "both")`. Checked numerically: the curves differ
+by a constant (37.8; intercept + held covariates), so the shape is identical
+on the link scale; termplot's pointwise SE covers only the age coefficients
+(0.71 vs 1.40 at age 64; similar at the ends), termeffects' covers the whole
+prediction; termeffects adds the simultaneous band.
+
+---
+
 ## 2026-11-09 — A real README
 
 The GitHub front page showed the unedited usethis template (`README.Rmd`

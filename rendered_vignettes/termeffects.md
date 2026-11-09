@@ -101,7 +101,8 @@ with the information a reader needs:
 ``` r
 fig <- term_figure(surface, cuts = cut_values, show_data = TRUE)
 names(fig)
-#> [1] "heatmap"     "curves"      "uncertainty" "covariates"  "caption"     "model"
+#> [1] "heatmap"     "curves"      "uncertainty" "covariates"  "caption"    
+#> [6] "model"
 ```
 
 `fig$heatmap` and `fig$curves` are ordinary ggplot2 plots, and
@@ -183,7 +184,10 @@ The numbers behind the plots are in an ordinary data frame:
 ``` r
 cuts
 #> Predictions over creatinine, sodium ( 150 grid points, response scale )
-#> Held constant: age = 60 (median), sex = Male (most common), diabetes = No (most common), anaemia = No (most common), hblood_pressure = No (most common), smoking = No (most common), platelets = 262 (median), cpk_enzyme = 250 (median)
+#> Held constant: age = 60 (median), sex = Male (most common), diabetes =
+#>   No (most common), anaemia = No (most common), hblood_pressure = No
+#>   (most common), smoking = No (most common), platelets = 262 (median),
+#>   cpk_enzyme = 250 (median)
 #> Critical values for 95% intervals (analytic): pointwise 1.960, simultaneous 2.942
 #> 
 #>  creatinine sodium estimate conf.low conf.high band.low band.high
@@ -222,6 +226,64 @@ term_curves(women)
 ```
 
 ![](termeffects_files/figure-gfm/at-1.png)<!-- -->
+
+## One variable: a termplot with bands
+
+termeffects also works for a single spline variable, like base R’s
+`termplot()`. Here is age in a linear model for ejection fraction:
+
+``` r
+fit_age <- lm(ejection_fraction ~ rcs(age, 4) + sex + rcs(creatinine, 4) + diabetes,
+              data = hf)
+```
+
+`termplot()` shows the spline term for age, centred to average zero,
+with pointwise ±2 standard error lines:
+
+``` r
+termplot(fit_age, terms = "rcs(age, 4)", se = TRUE, rug = TRUE)
+```
+
+![](termeffects_files/figure-gfm/termplot-1.png)<!-- -->
+
+termeffects shows the predicted ejection fraction over age, for a
+patient with the other covariates at their median or most common values,
+with both kinds of interval:
+
+``` r
+set.seed(3)
+age_curve <- term_predictions(fit_age, "age", n = 50)
+term_curves(age_curve, band = "both")
+```
+
+![](termeffects_files/figure-gfm/one-variable-curve-1.png)<!-- -->
+
+The two plots look the same in shape, but they differ in three ways:
+
+- **The y-axis.** `termplot()` shows the term’s contribution, centred at
+  zero; termeffects shows the predicted outcome itself, here in percent
+  LVEF. In a linear model the two curves differ only by a constant (the
+  intercept plus the contributions of the other covariates at their held
+  values), so their shape is exactly the same.
+- **The pointwise intervals.** `termplot()` uses only the uncertainty of
+  the age coefficients, so its interval is narrowest near the average
+  age. termeffects’ pointwise interval is for the prediction and also
+  includes the uncertainty of the intercept and of the other covariates’
+  coefficients, so it is wider, most of all in the middle of the age
+  range (here about twice as wide at age 64) and much less at the ends.
+  (`termplot()` draws ±2 standard errors; termeffects uses the exact
+  t-quantile.)
+- **The simultaneous band.** termeffects adds a band that holds for the
+  whole curve at once. It is the right interval for the questions people
+  usually ask of such a plot: *is the association non-linear?* (a
+  straight line fits inside the band) or *does the outcome change with
+  age at all?* (a horizontal line fits inside the band).
+
+For a logistic or Cox model, termeffects shows probabilities or hazard
+ratios by default, so the curve’s shape also differs from `termplot()`,
+which works on the log-odds or log-hazard scale; `scale = "link"` gives
+the same scale as `termplot()`. `termplot()` does not work with `rms`
+fits such as `orm`; termeffects does.
 
 ## How the intervals for an orm model are computed
 
