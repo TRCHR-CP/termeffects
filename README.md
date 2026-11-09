@@ -1,0 +1,110 @@
+
+<!-- README.md is generated from README.Rmd. Please edit that file, then run
+     devtools::build_readme() and commit both files and man/figures/. -->
+
+# termeffects
+
+**See non-linear interactions in regression models: heatmaps and cuts
+with simultaneous confidence bands.**
+
+Splines and interactions let a model follow curved relationships whose
+shape depends on another variable, but their coefficients cannot be read
+directly. termeffects shows what such a model predicts:
+
+- a **heatmap** of the predicted outcome over two variables, and
+- **cuts** through it: a few curves, each with a **simultaneous
+  confidence band** that covers all curves at once, so their shapes can
+  be judged and compared without the excess false findings of pointwise
+  intervals.
+
+It works with models you have already fitted: `rms::orm()`, `ols()`,
+`lrm()`, `cph()`, `lm()`, `glm()` (including Firth’s logistic regression
+with `logistf` or `brglm2`), `survival::coxph()`,
+`lme4::lmer()`/`glmer()`, `nlme::lme()`, `geepack::geeglm()` and
+`mgcv::gam()`.
+
+## Installation
+
+termeffects is in development and not yet on CRAN. Install it from
+GitHub:
+
+``` r
+# install.packages("remotes")
+remotes::install_github("TRCHR-CP/termeffects", build_vignettes = TRUE)
+```
+
+(If the repository is private, you first need a GitHub personal access
+token; see `usethis::create_github_token()`.)
+
+## Example
+
+Ejection fraction in 299 patients with heart failure, modelled with a
+proportional odds model in which the association with creatinine depends
+on sodium:
+
+``` r
+library(termeffects)
+library(rms)
+
+fit <- orm(ejection_fraction ~ rcs(creatinine, 4) * rcs(sodium, 4) + rcs(age, 4) +
+             sex + diabetes + anaemia + hblood_pressure + smoking,
+           data = heartfailure, x = TRUE, y = TRUE)
+```
+
+The heatmap shows the predicted mean ejection fraction over creatinine
+and sodium, with all other covariates held at their median or most
+common value. Dots are the patients; faded areas are outside the bulk of
+the data. The lines mark three cuts:
+
+``` r
+set.seed(1)
+surface <- term_predictions(fit, c("creatinine", "sodium"),
+                            values = list(creatinine = seq(0.5, 4, length.out = 50)), n = 50)
+term_heatmap(surface, show_data = TRUE, show_support = TRUE,
+             cuts = list(sodium = c(130, 137, 142)))
+```
+
+<img src="man/figures/README-heatmap-1.png" width="100%" />
+
+The cuts as curves, with 95% simultaneous bands:
+
+``` r
+cuts <- term_predictions(fit, c("creatinine", "sodium"),
+                         values = list(creatinine = seq(0.5, 4, length.out = 50),
+                                       sodium = c(130, 137, 142)))
+term_curves(cuts)
+```
+
+<img src="man/figures/README-curves-1.png" width="100%" />
+
+`term_figure()` bundles these plots with a table of the held covariates
+and a figure legend in words, ready for a manuscript.
+
+## Learn more
+
+After installing, `browseVignettes("termeffects")` lists the vignettes:
+
+| Vignette | What it shows |
+|:---|:---|
+| `vignette("termeffects")` | **Start here.** Heatmaps, cuts, figure captions, pointwise vs. simultaneous bands |
+| `vignette("model_types")` | Every supported model, with real data: logistic, Firth, Cox (including time-dependent and landmark), mixed models, GEE, GAM |
+| `vignette("parameterized_models")` | Plotting over derived quantities, e.g. a model in log(creatinine) shown over creatinine |
+| `vignette("coverage_study")` | Simulation study: do the simultaneous bands reach their 95% coverage? |
+| `vignette("feature_tour")` | Every function and option in one place |
+
+## How the bands are computed
+
+The band’s critical value is the 95% quantile of the maximum absolute
+t-statistic over the plotted grid, found by simulation from the
+estimated covariance of the model coefficients (or, optionally, from
+bootstrap refits). Bands are built on the linear-predictor scale and
+then transformed, so they stay within the possible range of the outcome.
+The coverage study in `vignette("coverage_study")` shows nominal
+coverage for linear and mixed models, slightly conservative bands for
+logistic and proportional odds models, and too narrow bands for Cox
+models with few events per coefficient.
+
+## Authors
+
+Brigitte Mueller, building on the methods and the original
+implementation by Lukas Bolsinger.

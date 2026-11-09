@@ -5,6 +5,18 @@ user-facing summary; this log also covers decisions, validation and tooling.
 
 ---
 
+## 2026-11-09 — A real README
+
+The GitHub front page showed the unedited usethis template (`README.Rmd`
+only, never rendered). Replaced with a README for colleagues: what the
+package does, supported models, installation from GitHub, a short orm
+example with heatmap and cuts (figures in `man/figures/`), a table of the
+vignettes, a paragraph on how the bands are computed with the coverage
+results, and authors. `README.md` is generated with `devtools::build_readme()`;
+re-run it after changing `README.Rmd`.
+
+---
+
 ## 2026-11-05 — Coverage simulation study (new vignette)
 
 Brigitte asked for a coverage simulation, described so that it can be used
