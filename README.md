@@ -33,9 +33,6 @@ GitHub:
 remotes::install_github("TRCHR-CP/termeffects", build_vignettes = TRUE)
 ```
 
-(If the repository is private, you first need a GitHub personal access
-token; see `usethis::create_github_token()`.)
-
 ## Example
 
 Ejection fraction in 299 patients with heart failure, modelled with a
