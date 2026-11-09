@@ -14,8 +14,10 @@
 #'   other covariates are held and which intervals are shown,
 #' * `$model`: a one-line description of the model.
 #'
-#' The plots themselves only name the held covariates when there are a few;
-#' with many, the caption lists them.
+#' The plots list the held covariates and their values in the subtitle; the
+#' caption also says why each value was chosen. For a manuscript, replace
+#' the subtitle with your own title: `fig$heatmap + ggplot2::labs(title =
+#' "...", subtitle = NULL)`.
 #'
 #' @param x A [term_predictions()] result with two continuous focal
 #'   variables (a surface).

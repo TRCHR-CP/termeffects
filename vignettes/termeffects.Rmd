@@ -94,11 +94,12 @@ cuts <- term_predictions(fit, c("creatinine", "sodium"),
 term_curves(cuts)
 ```
 
-## Step 3: a figure with its caption
+## Step 3: uncertainty map, covariate table and caption
 
-With ten covariates, the values at which the others are held cannot be
-written into a plot title. `term_figure()` returns the plots together with
-the information a reader needs:
+The plots above list the held covariates in their subtitle. For a
+manuscript you also need to show where the surface is precise, a table of
+the covariate values and a figure legend. `term_figure()` returns all of
+these together:
 
 ```{r figure}
 fig <- term_figure(surface, cuts = cut_values, show_data = TRUE)
@@ -199,6 +200,17 @@ kinds of interval:
 set.seed(3)
 age_curve <- term_predictions(fit_age, "age", n = 50)
 term_curves(age_curve, band = "both")
+```
+
+The plots are ordinary ggplot2 objects, so anything else is added with `+`:
+here a rug of the observed ages, and a title in place of the subtitle. The
+default grid spans the whole observed range, so no observations are cut off.
+
+```{r one-variable-rug}
+library(ggplot2)
+term_curves(age_curve) +
+  geom_rug(aes(x = age), data = hf, inherit.aes = FALSE, alpha = 0.3) +
+  labs(title = "Ejection fraction by age", subtitle = NULL)
 ```
 
 The two plots look the same in shape, but they differ in three ways:

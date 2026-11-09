@@ -36,6 +36,12 @@ The \strong{simultaneous} band (default) covers all plotted curves at once with
 the stated probability, so it can be used to judge their shapes, e.g.
 whether a flat line fits inside it. The \strong{pointwise} interval only holds
 at each single value.
+
+The held covariates are listed in the subtitle. The result is a ggplot, so
+titles and layers are added in the usual way, e.g.
+\code{+ ggplot2::labs(title = "...", subtitle = NULL)}, or a rug of the
+observed values with
+\code{+ ggplot2::geom_rug(ggplot2::aes(x = age), data = mydata, inherit.aes = FALSE)}.
 }
 \examples{
 fit <- lm(mpg ~ splines::ns(hp, 3) * wt + am, data = mtcars)

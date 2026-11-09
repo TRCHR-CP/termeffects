@@ -28,7 +28,9 @@ contour levels.}
 values in \code{\link[=term_predictions]{term_predictions()}} and \code{\link[=term_curves]{term_curves()}} to show the cuts.}
 
 \item{show_data}{Overlay the observed values of the two focal variables,
-to show where the surface is supported by data and where it extrapolates.}
+to show where the surface is supported by data and where it extrapolates.
+If the grid does not span all observations (e.g. a range set with
+\code{values}), the caption says how many lie outside the plot.}
 
 \item{fill}{What the colour shows: the \code{"estimate"} (default), the
 \code{"band_width"} (width of the simultaneous band, on the outcome scale) or
@@ -53,9 +55,14 @@ functions.
 }
 \description{
 Shows how the prediction changes over two continuous focal variables, with
-all other predictors held constant (listed in the subtitle, or in the
-caption of \code{\link[=term_figure]{term_figure()}} when there are many). Contour lines make it
-easier to read off values than colour alone.
+all other predictors held constant (listed in the subtitle). Contour lines
+make it easier to read off values than colour alone.
+}
+\details{
+The result is a ggplot, so titles and layers are added in the usual way:
+\code{+ ggplot2::labs(title = "...", subtitle = NULL)} replaces the subtitle
+with a title, and \code{+ ggplot2::geom_rug(...)} adds a rug of the observed
+values.
 }
 \examples{
 fit <- lm(mpg ~ splines::ns(hp, 3) * splines::ns(wt, 3) + am, data = mtcars)

@@ -5,6 +5,29 @@ user-facing summary; this log also covers decisions, validation and tooling.
 
 ---
 
+## 2026-11-09 — Subtitles list all held covariates; rugs and titles via ggplot2
+
+Brigitte's feedback: the subtitle "6 other covariates held ... (see the
+caption from term_figure())" is odd in a plot; asked for a rug option, and
+whether that should rather be done with ggplot2's `+`.
+
+- `.held_subtitle()` always lists every held covariate with its value (no
+  pointer to term_figure()). For a manuscript, replace it with
+  `+ labs(title = "...", subtitle = NULL)`; documented in term_heatmap(),
+  term_curves() and term_figure().
+- No `rug` argument (keep the interface small): the main vignette shows
+  `+ geom_rug(aes(x = age), data = hf, inherit.aes = FALSE)` and a title.
+- term_heatmap(show_data = TRUE): the caption says how many observations lie
+  outside the plotted range when the grid does not span them (e.g. 7 of 299
+  in the main vignette, creatinine 0.5–4). term_curves() needs no such note:
+  it does not clip its axes, and the default grid spans the observed range.
+- Main vignette: Step 3 renamed "uncertainty map, covariate table and
+  caption"; rug/title example in the one-variable section. Feature tour
+  check text updated. Tests: subtitle content, outside count (225 pass).
+  R CMD check: 0 errors, 1 warning (qpdf), 0 notes.
+
+---
+
 ## 2026-11-09 — Single-variable example (termplot comparison)
 
 Brigitte asked for an example with one rcs variable, like `termplot()`, and

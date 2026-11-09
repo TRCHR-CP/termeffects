@@ -1,9 +1,13 @@
 #' Heatmap of a prediction surface
 #'
 #' Shows how the prediction changes over two continuous focal variables, with
-#' all other predictors held constant (listed in the subtitle, or in the
-#' caption of [term_figure()] when there are many). Contour lines make it
-#' easier to read off values than colour alone.
+#' all other predictors held constant (listed in the subtitle). Contour lines
+#' make it easier to read off values than colour alone.
+#'
+#' The result is a ggplot, so titles and layers are added in the usual way:
+#' `+ ggplot2::labs(title = "...", subtitle = NULL)` replaces the subtitle
+#' with a title, and `+ ggplot2::geom_rug(...)` adds a rug of the observed
+#' values.
 #'
 #' @param x A [term_predictions()] result with two continuous focal
 #'   variables. A third, categorical focal variable is shown as panels.
@@ -14,6 +18,8 @@
 #'   values in [term_predictions()] and [term_curves()] to show the cuts.
 #' @param show_data Overlay the observed values of the two focal variables,
 #'   to show where the surface is supported by data and where it extrapolates.
+#'   If the grid does not span all observations (e.g. a range set with
+#'   `values`), the caption says how many lie outside the plot.
 #' @param fill What the colour shows: the `"estimate"` (default), the
 #'   `"band_width"` (width of the simultaneous band, on the outcome scale) or
 #'   the `"std.error"` (on the scale the band is computed on). The last two
@@ -97,11 +103,19 @@ term_heatmap <- function(x, contours = TRUE, cuts = NULL, show_data = FALSE,
     }
   }
 
+  outside <- 0
   if (show_data && !is.null(attr(x, "data"))) {
     observed <- attr(x, "data")
     if (all(c(vx, vy) %in% names(observed))) {
       p <- p + ggplot2::geom_point(data = observed, ggplot2::aes(x = .data[[vx]], y = .data[[vy]]),
                                    inherit.aes = FALSE, size = 0.6, alpha = 0.4, colour = "black")
+      ox <- observed[[vx]]
+      oy <- observed[[vy]]
+      ok <- !is.na(ox) & !is.na(oy)
+      rx <- range(plot_data[[vx]])
+      ry <- range(plot_data[[vy]])
+      outside <- sum(ok & (ox < rx[1] | ox > rx[2] | oy < ry[1] | oy > ry[2]))
+      n_obs <- sum(ok)
     }
   }
 
@@ -125,10 +139,21 @@ term_heatmap <- function(x, contours = TRUE, cuts = NULL, show_data = FALSE,
 
   p + ggplot2::coord_cartesian(xlim = range(plot_data[[vx]]), ylim = range(plot_data[[vy]]), expand = FALSE) +
     ggplot2::labs(x = vx, y = vy, subtitle = .held_subtitle(x),
-                  caption = if (show_support) .wrap(paste0(
-                    "Faded: outside the region holding ", 100 * support_prob, "% of the observations",
-                    if (capped) "; colours capped at the range inside it"), 70)) +
+                  caption = .heatmap_caption(show_support, support_prob, capped, outside,
+                                             if (outside) n_obs)) +
     ggplot2::theme_minimal()
+}
+
+
+.heatmap_caption <- function(show_support, support_prob, capped, outside, n_obs) {
+  lines <- c(
+    if (show_support) .wrap(paste0(
+      "Faded: outside the region holding ", 100 * support_prob, "% of the observations",
+      if (capped) "; colours capped at the range inside it"), 70),
+    if (outside > 0) paste0(outside, " of ", n_obs, " observations lie outside the plotted range")
+  )
+  if (length(lines)) paste(lines, collapse = "
+")
 }
 
 
@@ -218,6 +243,12 @@ term_heatmap <- function(x, contours = TRUE, cuts = NULL, show_data = FALSE,
 #' the stated probability, so it can be used to judge their shapes, e.g.
 #' whether a flat line fits inside it. The **pointwise** interval only holds
 #' at each single value.
+#'
+#' The held covariates are listed in the subtitle. The result is a ggplot, so
+#' titles and layers are added in the usual way, e.g.
+#' `+ ggplot2::labs(title = "...", subtitle = NULL)`, or a rug of the
+#' observed values with
+#' `+ ggplot2::geom_rug(ggplot2::aes(x = age), data = mydata, inherit.aes = FALSE)`.
 #'
 #' @param x A [term_predictions()], [term_layer()] or
 #'   [test_simultaneous_predictions()] result. The second focal variable, if
@@ -397,16 +428,12 @@ plot.term_layer <- function(x, ...) {
 }
 
 
-# "Held constant: age = 61, sex = Male"; with many held variables, a pointer
-# to the full list instead
-.held_subtitle <- function(x, max_shown = 4) {
+# "Held constant: age = 61, sex = Male, ..." (all held covariates; remove
+# with + labs(subtitle = NULL))
+.held_subtitle <- function(x) {
   held <- .held_text(x, rules = FALSE)
   if (!length(held)) {
     return(NULL)
-  }
-  if (length(held) > max_shown) {
-    return(.wrap(paste(length(held), "other covariates held at their median or most common",
-                       "value (see the caption from term_figure())"), 70))
   }
   .wrap(paste0("Held constant: ", paste(held, collapse = ", ")), 90)
 }

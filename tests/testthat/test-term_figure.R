@@ -16,8 +16,9 @@ test_that("term_figure bundles plots, covariates and a caption", {
   expect_match(fig$caption, "qsec = 17.7 (median)", fixed = TRUE)
   expect_match(fig$caption, "cuts through the surface at wt = 2.5, 3.5")
   expect_match(fig$model, "^linear regression, n = 32")
-  # many held covariates: the plot points to the caption instead of listing them
-  expect_match(fig$heatmap$labels$subtitle, "5 other covariates")
+  # all held covariates are listed in the subtitle, without pointing elsewhere
+  expect_match(fig$heatmap$labels$subtitle, "Held constant: qsec = 17.7, am = 0, gear = 4", fixed = TRUE)
+  expect_no_match(fig$heatmap$labels$subtitle, "term_figure", fixed = TRUE)
   expect_output(print(fig), "Predicted mpg")
 })
 
@@ -41,4 +42,15 @@ test_that("Cox model descriptions give patients and events, not nobs()", {
   hf$died <- as.numeric(hf$death_event == "Yes")
   fit <- survival::coxph(survival::Surv(time, died) ~ creatinine + sodium, data = hf)
   expect_match(termeffects:::.model_description(fit), "n = 299, 96 events", fixed = TRUE)
+})
+
+test_that("heatmap caption counts observations outside the plotted range", {
+  fit <- lm(mpg ~ splines::ns(hp, 3) * splines::ns(wt, 3), data = mtcars)
+  full <- term_predictions(fit, c("hp", "wt"), n = 10)
+  expect_null(term_heatmap(full, show_data = TRUE)$labels$caption)
+  part <- term_predictions(fit, c("hp", "wt"), values = list(hp = seq(100, 200, length.out = 10)), n = 10)
+  outside <- sum(mtcars$hp < 100 | mtcars$hp > 200)
+  expect_equal(term_heatmap(part, show_data = TRUE)$labels$caption,
+               paste(outside, "of 32 observations lie outside the plotted range"))
+  expect_null(term_heatmap(part)$labels$caption)
 })

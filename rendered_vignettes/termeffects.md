@@ -92,17 +92,17 @@ term_curves(cuts)
 
 ![](termeffects_files/figure-gfm/cuts-2.png)<!-- -->
 
-## Step 3: a figure with its caption
+## Step 3: uncertainty map, covariate table and caption
 
-With ten covariates, the values at which the others are held cannot be
-written into a plot title. `term_figure()` returns the plots together
-with the information a reader needs:
+The plots above list the held covariates in their subtitle. For a
+manuscript you also need to show where the surface is precise, a table
+of the covariate values and a figure legend. `term_figure()` returns all
+of these together:
 
 ``` r
 fig <- term_figure(surface, cuts = cut_values, show_data = TRUE)
 names(fig)
-#> [1] "heatmap"     "curves"      "uncertainty" "covariates"  "caption"    
-#> [6] "model"
+#> [1] "heatmap"     "curves"      "uncertainty" "covariates"  "caption"     "model"
 ```
 
 `fig$heatmap` and `fig$curves` are ordinary ggplot2 plots, and
@@ -184,23 +184,20 @@ The numbers behind the plots are in an ordinary data frame:
 ``` r
 cuts
 #> Predictions over creatinine, sodium ( 150 grid points, response scale )
-#> Held constant: age = 60 (median), sex = Male (most common), diabetes =
-#>   No (most common), anaemia = No (most common), hblood_pressure = No
-#>   (most common), smoking = No (most common), platelets = 262 (median),
-#>   cpk_enzyme = 250 (median)
-#> Critical values for 95% intervals (analytic): pointwise 1.960, simultaneous 2.942
+#> Held constant: age = 60 (median), sex = Male (most common), diabetes = No (most common), anaemia = No (most common), hblood_pressure = No (most common), smoking = No (most common), platelets = 262 (median), cpk_enzyme = 250 (median)
+#> Critical values for 95% intervals (analytic): pointwise 1.960, simultaneous 2.953
 #> 
 #>  creatinine sodium estimate conf.low conf.high band.low band.high
-#>      0.5000    130    29.42    16.91     51.91    14.69     60.59
-#>      0.5714    130    30.79    18.85     49.80    15.82     57.98
-#>      0.6429    130    32.21    21.30     47.71    17.89     55.11
-#>      0.7143    130    33.68    24.20     45.84    20.79     52.05
-#>      0.7857    130    35.15    27.27     44.52    24.06     49.42
-#>      0.8571    130    36.47    29.69     44.18    26.74     48.20
-#>      0.9286    130    37.44    30.88     44.79    27.98     48.58
-#>      1.0000    130    37.87    31.15     45.40    28.17     49.23
-#>      1.0714    130    37.66    31.10     45.00    28.19     48.77
-#>      1.1429    130    37.01    30.99     43.73    28.30     47.24
+#>      0.5000    130    29.42    16.91     51.91    14.68     60.67
+#>      0.5714    130    30.79    18.85     49.80    15.80     58.06
+#>      0.6429    130    32.21    21.30     47.71    17.86     55.18
+#>      0.7143    130    33.68    24.20     45.84    20.75     52.11
+#>      0.7857    130    35.15    27.27     44.52    24.03     49.47
+#>      0.8571    130    36.47    29.69     44.18    26.71     48.25
+#>      0.9286    130    37.44    30.88     44.79    27.95     48.62
+#>      1.0000    130    37.87    31.15     45.40    28.14     49.28
+#>      1.0714    130    37.66    31.10     45.00    28.16     48.81
+#>      1.1429    130    37.01    30.99     43.73    28.27     47.27
 #> ... with 140 more rows
 ```
 
@@ -257,6 +254,20 @@ term_curves(age_curve, band = "both")
 ```
 
 ![](termeffects_files/figure-gfm/one-variable-curve-1.png)<!-- -->
+
+The plots are ordinary ggplot2 objects, so anything else is added with
+`+`: here a rug of the observed ages, and a title in place of the
+subtitle. The default grid spans the whole observed range, so no
+observations are cut off.
+
+``` r
+library(ggplot2)
+term_curves(age_curve) +
+  geom_rug(aes(x = age), data = hf, inherit.aes = FALSE, alpha = 0.3) +
+  labs(title = "Ejection fraction by age", subtitle = NULL)
+```
+
+![](termeffects_files/figure-gfm/one-variable-rug-1.png)<!-- -->
 
 The two plots look the same in shape, but they differ in three ways:
 

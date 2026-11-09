@@ -297,9 +297,10 @@ fig$model
 cat(fig$caption)
 ```
 
-**Check:** with eight held covariates, the heatmap subtitle points to the
-caption instead of listing them, and `fig$covariates` lists all eight with how
-each value was chosen.
+**Check:** the heatmap subtitle lists all eight held covariates with their
+values, the caption below the heatmap says how many patients lie outside the
+plotted range (creatinine above 4 or sodium outside 125–148), and
+`fig$covariates` lists all eight with how each value was chosen.
 
 ## 9. Parameterized models *(from p-ggeffects)*
 

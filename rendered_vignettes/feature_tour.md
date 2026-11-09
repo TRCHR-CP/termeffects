@@ -498,9 +498,11 @@ Curves: cuts through the surface at sodium = 130, 137, 142. Shaded: 95%
 simultaneous confidence band, covering all curves at once (critical
 value 2.96).
 
-**Check:** with eight held covariates, the heatmap subtitle points to
-the caption instead of listing them, and `fig$covariates` lists all
-eight with how each value was chosen.
+**Check:** the heatmap subtitle lists all eight held covariates with
+their values, the caption below the heatmap says how many patients lie
+outside the plotted range (creatinine above 4 or sodium outside
+125–148), and `fig$covariates` lists all eight with how each value was
+chosen.
 
 ## 9. Parameterized models *(from p-ggeffects)*
 
@@ -578,7 +580,7 @@ parameterizations(pfit)
 #> $creatinine
 #> function (log_creatinine) 
 #> (exp(log_creatinine))
-#> <environment: 0x599a9b2b8d40>
+#> <environment: 0x598474478f40>
 class(original_model(pfit))
 #> [1] "lm"
 

@@ -550,4 +550,4 @@ bili enters as rcs(log(bili), 4) and albumin as rcs(albumin, 4). They
 interact in the model (rcs(log(bili), 4):rcs(albumin, 4)). All other
 covariates are held constant: age = 48.9 (median). Curves: cuts through
 the surface at albumin = 3.0, 3.5, 4.0. Shaded: 95% simultaneous
-confidence band, covering all curves at once (critical value 3.01).
+confidence band, covering all curves at once (critical value 2.99).

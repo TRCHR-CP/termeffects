@@ -18,6 +18,8 @@
   prediction surface and curves ("cuts") through it with their bands. Heatmaps
   can show the band width or standard error, fade regions with few data, and
   overlay curves.
+  The subtitle lists all covariates held constant; with `show_data = TRUE`
+  the heatmap caption says how many observations lie outside the plot.
 * New `term_figure()`: the plots together with a table of the held covariates
   and a caption describing the model and the figure.
 * From p-ggeffects (Lukas Bolsinger): `parameterize()` and helpers for
