@@ -477,6 +477,77 @@ regions with very few observations, e.g. corners of a heatmap outside the
 bulk of the data, may be worse than reported here.
 
 
+## What to report in a publication
+
+A checklist of what this vignette supports, for the authors of a paper on
+termeffects or of an applied paper that uses its bands.
+
+**Method of the bands.**
+
+* The band is a "sup-t" band: the critical value is the 95% quantile of
+  the maximum absolute t-statistic over all plotted points, found by
+  simulation from a multivariate normal (or t, for models with residual
+  degrees of freedom) distribution with the estimated covariance of the
+  predictions (Montiel Olea and Plagborg-Møller 2019). Report the number of
+  draws (`nsim`) and the seed.
+* Bands are computed on the linear-predictor scale and transformed to the
+  outcome scale, so they respect its range.
+* A band is simultaneous over the grid that is plotted, with the other
+  covariates held at stated values; report the grid and the held values
+  (`term_figure()` writes both into the caption).
+* Optional bootstrap bands use the maximum of bootstrap t-statistics, with
+  the spline knots fixed at their original values in every refit.
+
+**Simulation study** (this vignette).
+
+* Design: ADEMP (Morris et al. 2019), one true non-linear interaction
+  surface, five model types, n = 300 and 1000, a 20 x 20 surface and three
+  curves, 1000 data sets per scenario for the analytic bands and 500 for the
+  bootstrap bands.
+* Results: coverage close to 95% for linear and linear mixed models,
+  slightly conservative for logistic and proportional odds models, too low
+  for Cox models with few events per coefficient (with the follow-up over
+  n = 300, 1000, 4000 showing that this is small-sample bias that disappears
+  with more events); bootstrap bands conservative; pointwise intervals cover
+  the whole surface in only 15-34% of data sets.
+* Report the Monte Carlo standard errors with the coverage, and the
+  excluded non-converged `orm` fits.
+
+**Agreement with rms.** Where `rms::Predict(conf.type = "simultaneous")`
+returns a band, termeffects gives the same estimates, standard errors and,
+within numerical error, critical values; rms failed for `orm` models, for
+most larger grids and for whole surfaces, and does not accept models fitted
+outside rms. Report the package versions (shown in the table's section).
+
+**What is new**: see "What termeffects adds" above.
+
+**Recommended practice** for users, worth stating in a paper:
+
+* set a seed before `term_predictions()`, and use more draws (e.g.
+  `nsim = 1e5`) for final figures of small grids;
+* prespecify spline knots when the model is refitted (bootstrap, multiple
+  imputation);
+* for Cox models, plan for many events per model coefficient (about 30 gave
+  close to nominal coverage here), or read the bands as approximate;
+* show where the data are (`show_data`, `show_support`) and do not
+  interpret regions without data;
+* use the simultaneous band, not pointwise intervals, to judge the shape of
+  a curve or to compare curves.
+
+**Examples.** Most readers fit logistic or Cox models; an example with
+`glm` or `survival::coxph` shows the package where rms cannot produce bands,
+and an `orm` example shows the proportional odds model, which rms supports
+but cannot give simultaneous bands for.
+
+**Limitations not studied here**: one data-generating mechanism; correctly
+specified models with prespecified knots; random-intercept models only;
+Firth-type logistic regression, GEE, generalized linear mixed models and
+GAMs were not part of the simulation; regions with few observations.
+
+**Credit.** The approach (simulated maximum-t bands for prediction surfaces,
+the bootstrap option, parameterized models) comes from Lukas Bolsinger's
+p-ggeffects; termeffects is a standalone reimplementation.
+
 ## Reproducing the study
 
 ```r

@@ -5,6 +5,16 @@ user-facing summary; this log also covers decisions, validation and tooling.
 
 ---
 
+## 2026-11-17 — Reporting checklist in the coverage study
+
+New section "What to report in a publication" in
+`vignettes/coverage_study.Rmd`: method of the bands, simulation design and
+results, agreement with rms, recommended practice, choice of examples
+(glm/coxph and orm), limitations not studied, credit to Lukas Bolsinger.
+The team writes the paper itself; this is its basis.
+
+---
+
 ## 2026-11-17 — Comparison with rms simultaneous bands; what termeffects adds
 
 Brigitte compared termeffects with `rms::Predict(conf.type = "simultaneous")`
