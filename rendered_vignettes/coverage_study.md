@@ -1,4 +1,4 @@
-# Do the simultaneous bands cover? A simulation study
+# Validating the simultaneous bands: simulation study and comparison with rms
 
 termeffects draws **simultaneous confidence bands**: bands that are
 meant to contain the *whole* true surface, or all true curves, at once
@@ -9,7 +9,10 @@ study that checks whether the bands achieve their nominal coverage, for
 the model types and interval methods termeffects offers. It is written
 so that it can serve as the simulation section of a publication; it is
 structured following Morris, White and Crowther (2019) (“ADEMP”: aims,
-data-generating mechanisms, estimands, methods, performance measures).
+data-generating mechanisms, estimands, methods, performance measures). A
+second section compares the bands with an independent implementation,
+`rms::Predict(conf.type = "simultaneous")`, and lists what termeffects
+adds to rms.
 
 The study itself runs for about two hours and is not re-run when this
 vignette is built: the code is `validation/11_coverage_study.R` in the
@@ -273,6 +276,92 @@ intervals.
 scenarios) and 3 of 1000 (bootstrap scenarios); these data sets are
 excluded. All other fits succeeded.
 
+## Agreement with an independent implementation
+
+The coverage study checks the bands against the truth. A second, quicker
+check compares them with an independent implementation:
+`rms::Predict(..., conf.type = "simultaneous")` (Harrell 2015) computes
+simultaneous bands with the `multcomp` package (Hothorn, Bretz and
+Westfall 2008), which evaluates the multivariate normal or t
+distribution by numerical integration (Genz and Bretz 2009), not by
+simulation as termeffects does. For the same model and grid, both should
+give the same estimates and standard errors, and critical values that
+differ only by numerical error.
+
+We fitted four models to the `heartfailure` data included in the
+package, each with a restricted cubic spline interaction between
+creatinine and sodium: ejection fraction with `ols` and `orm`, death
+with `lrm`, and time to death with `cph`. Bands were computed on the
+linear-predictor scale for three curves (sodium 130, 137, 142) of 10, 20
+and 40 points each, and for a 20 x 20 surface; termeffects used 100,000
+simulation draws.
+
+| Model                   | Grid            | Points | termeffects | rms   | Difference |
+|:------------------------|:----------------|-------:|:------------|:------|:-----------|
+| Linear (ols)            | 3 curves x 10   |     30 | 2.945       | 2.939 | +0.20%     |
+| Linear (ols)            | 3 curves x 20   |     60 | 2.984       | error |            |
+| Linear (ols)            | 3 curves x 40   |    120 | 3.000       | error |            |
+| Linear (ols)            | Surface 20 x 20 |    400 | 3.258       | error |            |
+| Logistic (lrm)          | 3 curves x 10   |     30 | 2.929       | 2.937 | -0.27%     |
+| Logistic (lrm)          | 3 curves x 20   |     60 | 2.965       | 2.964 | +0.03%     |
+| Logistic (lrm)          | 3 curves x 40   |    120 | 2.979       | 2.980 | -0.04%     |
+| Logistic (lrm)          | Surface 20 x 20 |    400 | 3.143       | error |            |
+| Cox (cph)               | 3 curves x 10   |     30 | 2.905       | 2.908 | -0.12%     |
+| Cox (cph)               | 3 curves x 20   |     60 | 2.946       | error |            |
+| Cox (cph)               | 3 curves x 40   |    120 | 2.967       | error |            |
+| Cox (cph)               | Surface 20 x 20 |    400 | 3.137       | error |            |
+| Proportional odds (orm) | 3 curves x 10   |     30 | 2.919       | error |            |
+| Proportional odds (orm) | 3 curves x 20   |     60 | 2.957       | error |            |
+| Proportional odds (orm) | 3 curves x 40   |    120 | 2.973       | error |            |
+| Proportional odds (orm) | Surface 20 x 20 |    400 | 3.225       | error |            |
+
+Critical values of the 95% simultaneous band from termeffects and from
+rms::Predict(conf.type = ‘simultaneous’).
+
+Where rms returned a band (5 of 16 comparisons), the estimates agreed to
+within 2e-12, the standard errors to within a relative 9e-14, and the
+critical values to within 0.27%, within the numerical error of the two
+methods (termeffects simulates the critical value; multcomp’s
+integration is itself randomized). The two implementations compute the
+same band.
+
+In the other 11 comparisons `rms::Predict()` stopped with an error (here
+with rms 8.1.0 and multcomp 1.4.29): for the proportional odds model in
+every case, and for the other models on most of the larger grids, where
+the numerical integration fails (e.g. “covariance matrix not positive
+semidefinite”). termeffects simulates the maximum directly and has no
+such limit on the number of grid points. The same comparison runs as an
+automated test (`tests/testthat/test-rms_agreement.R`) on a grid on
+which rms works.
+
+### What termeffects adds
+
+rms already offers simultaneous bands for its own models, and surface
+plots without bands (`rms::bplot()`). termeffects adds:
+
+- **Bands for large grids and whole surfaces**, such as heatmaps of
+  several hundred to thousands of points, and for `orm` models (see the
+  table above).
+- **Models outside rms**: `glm` (including Firth-type logistic
+  regression with `logistf` or `brglm2`), `survival::coxph` (also
+  stratified and with time-dependent covariates), `lme4`, `nlme`,
+  `geepack` and `mgcv` models. `rms::Predict()` only works with models
+  fitted by rms.
+- **Heatmaps and cuts together**: a heatmap with contours, the observed
+  data and faded regions with few observations, the cuts marked on it,
+  and the curves along these cuts with one band that covers all of them
+  (`ci_scope` sets over which points the band is simultaneous).
+- **Reporting**: `term_figure()` returns the plots with a map of the
+  band width, a table of the covariates held constant and a figure
+  legend in words.
+- **Bootstrap bands** (maximum of bootstrap t-statistics) for models of
+  independent observations, with the spline knots kept fixed in the
+  refits.
+- **Testing a reference curve** against the band
+  (`test_simultaneous_predictions()`), and **parameterized models**:
+  plotting over derived quantities, e.g. a model in log(creatinine)
+  shown over creatinine.
+
 ## Conclusions
 
 - termeffects’ analytic simultaneous bands achieve their nominal 95%
@@ -289,6 +378,9 @@ excluded. All other fits succeeded.
 - Pointwise intervals cover the whole surface far less often than 95%;
   simultaneous bands are needed to read the shape of a surface or to
   compare curves.
+- Where rms can compute simultaneous bands, termeffects gives the same
+  bands; it also gives them where rms cannot (orm models, large grids,
+  models not fitted with rms).
 
 **Limitations.** One data-generating mechanism (one true surface, two
 correlated normal predictors), correctly specified models with
@@ -327,6 +419,12 @@ evaluate statistical methods. *Statistics in Medicine* 38:2074–2102.
 
 Ruppert D, Wand MP, Carroll RJ (2003). *Semiparametric Regression*.
 Cambridge University Press.
+
+Genz A, Bretz F (2009). *Computation of Multivariate Normal and t
+Probabilities*. Springer.
+
+Hothorn T, Bretz F, Westfall P (2008). Simultaneous inference in general
+parametric models. *Biometrical Journal* 50:346-363.
 
 Firth D (1993). Bias reduction of maximum likelihood estimates.
 *Biometrika* 80:27–38.

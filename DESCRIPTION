@@ -25,6 +25,7 @@ Suggests:
     lme4,
     logistf,
     mgcv,
+    multcomp,
     mvtnorm,
     nlme,
     rmarkdown,

@@ -1,10 +1,10 @@
 ---
-title: "Do the simultaneous bands cover? A simulation study"
+title: "Validating the simultaneous bands: simulation study and comparison with rms"
 output:
   rmarkdown::html_vignette:
     toc: true
 vignette: >
-  %\VignetteIndexEntry{Do the simultaneous bands cover? A simulation study}
+  %\VignetteIndexEntry{Validating the simultaneous bands: simulation study and comparison with rms}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -24,7 +24,9 @@ whether the bands achieve their nominal coverage, for the model types and
 interval methods termeffects offers. It is written so that it can serve as
 the simulation section of a publication; it is structured following Morris,
 White and Crowther (2019) ("ADEMP": aims, data-generating mechanisms,
-estimands, methods, performance measures).
+estimands, methods, performance measures). A second section compares the
+bands with an independent implementation, `rms::Predict(conf.type =
+"simultaneous")`, and lists what termeffects adds to rms.
 
 The study itself runs for about two hours and is not re-run when this
 vignette is built: the code is `validation/11_coverage_study.R` in the
@@ -334,6 +336,119 @@ pointwise intervals.
 (analytic scenarios) and `r failed_boot` of 1000 (bootstrap scenarios); these
 data sets are excluded. All other fits succeeded.
 
+## Agreement with an independent implementation
+
+The coverage study checks the bands against the truth. A second, quicker
+check compares them with an independent implementation: `rms::Predict(...,
+conf.type = "simultaneous")` (Harrell 2015) computes simultaneous bands with
+the `multcomp` package (Hothorn, Bretz and Westfall 2008), which evaluates
+the multivariate normal or t distribution by numerical integration (Genz and
+Bretz 2009), not by simulation as termeffects does. For the same model and
+grid, both should give the same estimates and standard errors, and critical
+values that differ only by numerical error.
+
+We fitted four models to the `heartfailure` data included in the package,
+each with a restricted cubic spline interaction between creatinine and
+sodium: ejection fraction with `ols` and `orm`, death with `lrm`, and time to
+death with `cph`. Bands were computed on the linear-predictor scale for three
+curves (sodium 130, 137, 142) of 10, 20 and 40 points each, and for a
+20 x 20 surface; termeffects used 100,000 simulation draws.
+
+```{r agreement}
+suppressMessages(library(rms))
+library(termeffects)
+hf <- heartfailure
+hf$death <- as.numeric(hf$death_event == "Yes")
+dd <- datadist(hf)
+options(datadist = dd)
+form_ef <- ejection_fraction ~ rcs(creatinine, 4) * rcs(sodium, 4) + rcs(age, 4) + sex + diabetes
+fits <- list(
+  "Linear (ols)" = ols(form_ef, data = hf, x = TRUE, y = TRUE),
+  "Logistic (lrm)" = lrm(death ~ rcs(creatinine, 4) * rcs(sodium, 3) + rcs(age, 3) + sex,
+                         data = hf, x = TRUE, y = TRUE),
+  "Cox (cph)" = cph(Surv(time, death) ~ rcs(creatinine, 4) * rcs(sodium, 3) + rcs(age, 3) + sex,
+                    data = hf, x = TRUE, y = TRUE),
+  "Proportional odds (orm)" = orm(form_ef, data = hf, x = TRUE, y = TRUE)
+)
+curves <- function(k) list(creatinine = seq(0.6, 3, length.out = k), sodium = c(130, 137, 142))
+grids <- list("3 curves x 10" = curves(10), "3 curves x 20" = curves(20), "3 curves x 40" = curves(40),
+              "Surface 20 x 20" = list(creatinine = seq(0.6, 3, length.out = 20),
+                                       sodium = seq(128, 146, length.out = 20)))
+by <- c("creatinine", "sodium")
+compare <- function(fit, grid) {
+  set.seed(1)
+  te <- term_predictions(fit, by, values = grid, scale = "link", nsim = 1e5)
+  set.seed(1)
+  rms <- tryCatch({
+    simultaneous <- do.call(Predict, c(list(fit), grid, conf.type = "simultaneous"))
+    pointwise <- do.call(Predict, c(list(fit), grid))
+    m <- merge(merge(as.data.frame(simultaneous)[c(by, "yhat", "upper")],
+                     as.data.frame(pointwise)[c(by, "upper")], by = by, suffixes = c("", "_pw")),
+               as.data.frame(te), by = by)
+    se <- (m$upper_pw - m$yhat) / attr(te, "pointwise_critical_value")
+    c(crit = mean((m$upper - m$yhat) / se), estimate = max(abs(m$yhat - m$estimate)),
+      se = max(abs(se / m$std.error - 1)))
+  }, error = function(e) c(crit = NA, estimate = NA, se = NA))
+  data.frame(points = nrow(te), crit_te = attr(te, "critical_value"), crit_rms = rms[["crit"]],
+             diff_estimate = rms[["estimate"]], diff_se = rms[["se"]])
+}
+agreement <- do.call(rbind, lapply(names(fits), function(f) do.call(rbind, lapply(names(grids), function(g)
+  cbind(model = f, grid = g, compare(fits[[f]], grids[[g]]))))))
+ok <- !is.na(agreement$crit_rms)
+knitr::kable(data.frame(
+  Model = agreement$model, Grid = agreement$grid, Points = agreement$points,
+  termeffects = sprintf("%.3f", agreement$crit_te),
+  rms = ifelse(ok, sprintf("%.3f", agreement$crit_rms), "error"),
+  Difference = ifelse(ok, sprintf("%+.2f%%", 100 * (agreement$crit_te / agreement$crit_rms - 1)), "")),
+  caption = "Critical values of the 95% simultaneous band from termeffects and from rms::Predict(conf.type = 'simultaneous').")
+```
+
+Where rms returned a band (`r sum(ok)` of `r nrow(agreement)` comparisons),
+the estimates agreed to within
+`r format(signif(max(agreement$diff_estimate[ok]), 1))`, the standard errors
+to within a relative `r format(signif(max(agreement$diff_se[ok]), 1))`, and
+the critical values to within
+`r sprintf("%.2f%%", 100 * max(abs(agreement$crit_te[ok] / agreement$crit_rms[ok] - 1)))`,
+within the numerical error of the two methods (termeffects simulates the
+critical value; multcomp's integration is itself randomized). The two
+implementations compute the same band.
+
+In the other `r sum(!ok)` comparisons `rms::Predict()` stopped with an error
+(here with rms `r packageVersion("rms")` and multcomp
+`r packageVersion("multcomp")`): for the proportional odds model in every
+case, and for the other models on most of the larger grids, where the
+numerical integration fails (e.g. "covariance matrix not positive
+semidefinite"). termeffects simulates the maximum directly and has no such
+limit on the number of grid points. The same comparison runs as an
+automated test
+(`tests/testthat/test-rms_agreement.R`) on a grid on which rms works.
+
+### What termeffects adds
+
+rms already offers simultaneous bands for its own models, and surface plots
+without bands (`rms::bplot()`). termeffects adds:
+
+* **Bands for large grids and whole surfaces**, such as heatmaps of several
+  hundred to thousands of points, and for `orm` models (see the table
+  above).
+* **Models outside rms**: `glm` (including Firth-type logistic regression
+  with `logistf` or `brglm2`), `survival::coxph` (also stratified and with
+  time-dependent covariates), `lme4`, `nlme`, `geepack` and `mgcv` models.
+  `rms::Predict()` only works with models fitted by rms.
+* **Heatmaps and cuts together**: a heatmap with contours, the observed data
+  and faded regions with few observations, the cuts marked on it, and the
+  curves along these cuts with one band that covers all of them
+  (`ci_scope` sets over which points the band is simultaneous).
+* **Reporting**: `term_figure()` returns the plots with a map of the band
+  width, a table of the covariates held constant and a figure legend in
+  words.
+* **Bootstrap bands** (maximum of bootstrap t-statistics) for models of
+  independent observations, with the spline knots kept fixed in the refits.
+* **Testing a reference curve** against the band
+  (`test_simultaneous_predictions()`), and **parameterized models**: plotting
+  over derived quantities, e.g. a model in log(creatinine) shown over
+  creatinine.
+
 ## Conclusions
 
 * termeffects' analytic simultaneous bands achieve their nominal 95%
@@ -349,6 +464,9 @@ data sets are excluded. All other fits succeeded.
 * Pointwise intervals cover the whole surface far less often than 95%;
   simultaneous bands are needed to read the shape of a surface or to compare
   curves.
+* Where rms can compute simultaneous bands, termeffects gives the same
+  bands; it also gives them where rms cannot (orm models, large grids,
+  models not fitted with rms).
 
 **Limitations.** One data-generating mechanism (one true surface, two
 correlated normal predictors), correctly specified models with prespecified
@@ -388,6 +506,12 @@ statistical methods. *Statistics in Medicine* 38:2074–2102.
 
 Ruppert D, Wand MP, Carroll RJ (2003). *Semiparametric Regression*.
 Cambridge University Press.
+
+Genz A, Bretz F (2009). *Computation of Multivariate Normal and t
+Probabilities*. Springer.
+
+Hothorn T, Bretz F, Westfall P (2008). Simultaneous inference in general
+parametric models. *Biometrical Journal* 50:346-363.
 
 Firth D (1993). Bias reduction of maximum likelihood estimates. *Biometrika*
 80:27–38.

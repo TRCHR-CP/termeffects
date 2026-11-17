@@ -86,7 +86,7 @@ After installing, `browseVignettes("termeffects")` lists the vignettes:
 | `vignette("termeffects")` | **Start here.** Heatmaps, cuts, figure captions, pointwise vs. simultaneous bands |
 | `vignette("model_types")` | Every supported model, with real data: logistic, Firth, Cox (including time-dependent and landmark), mixed models, GEE, GAM |
 | `vignette("parameterized_models")` | Plotting over derived quantities, e.g. a model in log(creatinine) shown over creatinine |
-| `vignette("coverage_study")` | Simulation study: do the simultaneous bands reach their 95% coverage? |
+| `vignette("coverage_study")` | Validation: a simulation study of the bands’ coverage, a comparison with rms, and what termeffects adds to rms |
 | `vignette("feature_tour")` | Every function and option in one place |
 
 ## How the bands are computed

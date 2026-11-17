@@ -5,6 +5,32 @@ user-facing summary; this log also covers decisions, validation and tooling.
 
 ---
 
+## 2026-11-17 — Comparison with rms simultaneous bands; what termeffects adds
+
+Brigitte compared termeffects with `rms::Predict(conf.type = "simultaneous")`
+on a private project (ols, 100 points): identical estimates, critical values
+3.012 (rms) vs 2.985/3.008 (termeffects, two unseeded runs; simulation
+noise). She asked for such checks on shareable data, visible to the team, and
+for a statement of what is new compared with rms.
+
+- `tests/testthat/test-rms_agreement.R`: ols, lrm, cph on `heartfailure`,
+  3 curves x 10 points, nsim = 1e5: estimates and SEs identical (< 1e-8),
+  critical values within 1% (observed 0.1-0.3%). skip_on_cran.
+- `vignettes/coverage_study.Rmd`, new section "Agreement with an independent
+  implementation" (computed when the vignette is built) and "What termeffects
+  adds". Findings: where rms returns a band (5 of 16 model x grid
+  combinations) critical values agree within 0.27%; rms::Predict fails for
+  orm on every grid (multcomp: coefficient/covariance dimensions), and for
+  ols/cph from 60 points and for all models on a 20 x 20 surface (multcomp
+  numerical integration errors). rms::Predict does not accept glm fits.
+  Title changed to "Validating the simultaneous bands: simulation study and
+  comparison with rms". Hothorn et al. 2008 and Genz & Bretz 2009 added.
+- `multcomp` added to Suggests. README vignette table updated.
+- Brigitte will write the paper with the team; the coverage study vignette is
+  its basis.
+
+---
+
 ## 2026-11-09 — Subtitles list all held covariates; rugs and titles via ggplot2
 
 Brigitte's feedback: the subtitle "6 other covariates held ... (see the
