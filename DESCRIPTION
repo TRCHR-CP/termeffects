@@ -1,7 +1,7 @@
 Package: termeffects
 Title: Term Plots and Simultaneous Confidence Bands for Interaction
     Surfaces
-Version: 0.0.0.9000
+Version: 0.1.0
 Authors@R: c(
     person("Brigitte", "Mueller", , "brigitte.mueller@uhn.ca", role = c("aut", "cre")),
     person("Lukas", "Bolsinger", role = "aut")
@@ -10,6 +10,8 @@ Description: Computes adjusted predictions with simultaneous confidence
     bands over prediction curves and two-variable interaction surfaces,
     including parameterized (transformed) predictor coordinates, and
     visualizes them as term plots and heatmaps.
+URL: https://github.com/TRCHR-CP/termeffects
+BugReports: https://github.com/TRCHR-CP/termeffects/issues
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true

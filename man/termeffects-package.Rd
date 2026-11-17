@@ -8,6 +8,14 @@
 \description{
 Computes adjusted predictions with simultaneous confidence bands over prediction curves and two-variable interaction surfaces, including parameterized (transformed) predictor coordinates, and visualizes them as term plots and heatmaps.
 }
+\seealso{
+Useful links:
+\itemize{
+  \item \url{https://github.com/TRCHR-CP/termeffects}
+  \item Report bugs at \url{https://github.com/TRCHR-CP/termeffects/issues}
+}
+
+}
 \author{
 \strong{Maintainer}: Brigitte Mueller \email{brigitte.mueller@uhn.ca}
 

@@ -5,6 +5,41 @@ user-facing summary; this log also covers decisions, validation and tooling.
 
 ---
 
+## 2026-11-17 — Vignettes reorganised; version 0.1.0
+
+Brigitte agreed to the reorganisation postponed on 2026-11-05. State before
+it: git tag `before-vignette-reorg` (pushed).
+
+- Package vignettes are now four: `termeffects` (Get started),
+  `model_types`, `parameterized_models`, `coverage_study`.
+- `introduction`, `heart_failure_egfr`, `heart_failure_renal_index` (Lukas's,
+  ported) removed; their unique content moved:
+  - band definition (formula, simulation/bootstrap) -> termeffects.Rmd
+    "How the band is computed";
+  - limits of inference after marginalisation (held values, ci_scope,
+    finite grid, regions without data) -> termeffects.Rmd "What the bands do
+    and do not cover"; reference-function test with its caveat -> new
+    section "Testing a reference curve" (same f0, on the main model);
+  - origin in p-ggeffects -> end of termeffects.Rmd;
+  - parameterized-model theory, BMI example, function list, prediction
+    range search, layers (restrictions, motivation, circles), testing in
+    original variables, CKD-EPI 2021 eGFR example with constant-eGFR layer,
+    limitations of parameterization -> parameterized_models.Rmd (rewritten).
+  - dropped as duplicates: creatinine x sodium heatmaps and pointwise vs
+    simultaneous examples (in termeffects.Rmd), the synthetic renal index
+    (replaced by the real eGFR equation), residual plot, "questions to
+    answer", BMI extension note, plotting feature lists.
+- `feature_tour.Rmd` moved to `validation/` (not shipped; still rendered by
+  `validation/render_vignettes.R`).
+- `validation/09_vignette_track_changes.py` now compares Lukas's originals
+  with the versions at the tag.
+- `_pkgdown.yml` (articles and reference grouped); site builds locally, not
+  yet published.
+- Version 0.1.0 (first version for the group), URL and BugReports in
+  DESCRIPTION, status note in README.
+
+---
+
 ## 2026-11-17 — Reporting checklist in the coverage study
 
 New section "What to report in a publication" in

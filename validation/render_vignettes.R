@@ -1,4 +1,4 @@
-# Render every vignette to rendered_vignettes/ as GitHub Markdown with PNG
+# Render every vignette (and validation/feature_tour.Rmd) to rendered_vignettes/ as GitHub Markdown with PNG
 # figures, readable on GitHub, in VS Code's Markdown preview and in RStudio's
 # visual editor. Run from the package folder:
 #   Rscript validation/render_vignettes.R              (all vignettes)
@@ -8,10 +8,12 @@ devtools::load_all(quiet = TRUE)
 out <- "rendered_vignettes"
 dir.create(out, showWarnings = FALSE)
 
-rmds <- list.files("vignettes", pattern = "\\.Rmd$", full.names = TRUE)
+# the package vignettes, and the feature tour (kept in validation/, not shipped)
+rmds <- c(list.files("vignettes", pattern = "\\.Rmd$", full.names = TRUE),
+          "validation/feature_tour.Rmd")
 only <- commandArgs(trailingOnly = TRUE)
 if (length(only)) {
-  rmds <- file.path("vignettes", paste0(only, ".Rmd"))
+  rmds <- rmds[tools::file_path_sans_ext(basename(rmds)) %in% only]
 }
 
 for (rmd in rmds) {

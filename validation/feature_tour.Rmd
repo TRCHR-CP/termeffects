@@ -16,8 +16,10 @@ knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7, fig.height
 ```
 
 This vignette uses every function in termeffects once, on the `heartfailure`
-data. It is meant for trying the package out: open `vignettes/feature_tour.Rmd`
-in RStudio and run it chunk by chunk. Each section ends with **Check:**, saying
+data. It is meant for checking the package by hand: open
+`validation/feature_tour.Rmd` in RStudio and run it chunk by chunk (it is not
+part of the installed package; `validation/render_vignettes.R` renders it to
+`rendered_vignettes/`). Each section ends with **Check:**, saying
 what you should see. Features that came from Lukas Bolsinger's p-ggeffects are
 marked *(from p-ggeffects)*.
 

@@ -1,0 +1,48 @@
+template:
+  bootstrap: 5
+
+articles:
+- title: Get started
+  contents:
+  - termeffects
+- title: Guides
+  contents:
+  - model_types
+  - parameterized_models
+- title: Validation
+  contents:
+  - coverage_study
+
+reference:
+- title: Predictions
+  contents:
+  - term_predictions
+  - term_grid
+  - test_simultaneous_predictions
+  - vcov.term_predictions
+- title: Plots
+  contents:
+  - term_heatmap
+  - term_curves
+  - term_figure
+  - term_layer
+  - plot.term_predictions
+  - plot.term_test
+- title: Parameterized models
+  contents:
+  - parameterize
+  - parameterized_model
+  - parameterize_data
+  - parameterizations
+  - parameter_variables
+  - original_model
+  - is.parameterized_model
+  - predict.parameterized_model
+  - print.parameterized_model
+  - parameterized_model-class
+- title: Data
+  contents:
+  - heartfailure
+- title: Package
+  contents:
+  - termeffects-package

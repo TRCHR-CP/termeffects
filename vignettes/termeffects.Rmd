@@ -159,8 +159,26 @@ error: 1.96 for a pointwise 95% interval, and a larger value for the
 simultaneous band.
 
 To test a specific curve, for example a published reference, against the
-band, see `test_simultaneous_predictions()` and the vignette "termeffects:
-introduction".
+band, see "Testing a reference curve" below.
+
+## Testing a reference curve
+
+Sometimes the question is whether the data are compatible with one
+**specific** curve or surface, e.g. a published reference.
+`test_simultaneous_predictions()` checks whether that reference function lies
+inside the simultaneous band everywhere on the grid. The function's
+arguments are named after the focal variables:
+
+```{r reference-test}
+f0 <- function(creatinine, sodium) 40 - 3 * (creatinine - 1) + 0.2 * (sodium - 137)
+test <- test_simultaneous_predictions(cuts, f = f0)
+attr(test, "all_inside")
+plot(test)
+```
+
+This tests equality to this *particular* function, at the chosen held
+values. It is not a general test of linearity: rejecting it does not prove
+non-linearity, and not rejecting it does not establish linearity.
 
 ## Holding other variables at chosen values
 
@@ -290,15 +308,63 @@ The same functions work for:
 
 Use `scale = "link"` to see the linear predictor (e.g. log-odds) instead.
 
+## How the band is computed
+
+For a prediction $\hat f(x)$ with standard error $\mathrm{SE}(x)$, the
+pointwise interval is
+$$
+\hat f(x) \pm t_{1-\alpha/2}\,\mathrm{SE}(x),
+$$
+which only makes a statement about one point $x$ at a time. The simultaneous
+band has the same form,
+$$
+\hat f(x) \pm c_\alpha\,\mathrm{SE}(x),
+$$
+but $c_\alpha$ is the 95% quantile of
+$\max_x |\hat f(x) - f(x)| / \mathrm{SE}(x)$, the largest standardized error
+over all points of the grid. It therefore takes the correlation between
+neighbouring predictions into account and is far smaller than a Bonferroni
+correction. There is no closed form for this quantile, so termeffects
+simulates it from the estimated distribution of the coefficients (normal, or
+t for models with residual degrees of freedom), or, with
+`ci_method = "bootstrap"`, from bootstrap refits. For generalized linear
+models the band is computed on the scale of the linear predictor and then
+transformed. `vignette("coverage_study")` shows that the bands reach their
+95% coverage in simulations, and agree with `rms::Predict(conf.type =
+"simultaneous")` where rms can compute them.
+
 ## What the bands do and do not cover
 
 * Bands are simultaneous **over the grid of points that is plotted**, with
   the other variables held at the stated values. A finer grid makes the band
   closer to one for the whole continuous range.
+* **The held values are part of the result.** The other variables have been
+  fixed at the stated values; the band says nothing about other values of
+  them, or about their interactions. Changing the held values can change the
+  surface.
+* `ci_scope` sets over which points the band is simultaneous: the whole grid
+  (`"global"`, default), each panel (`"faceted"`) or each curve (`"curve"`).
+  State the choice in a published figure.
 * Bands are computed on the scale of the linear predictor and then
   transformed, so they stay within the possible range of the outcome (0–1 for
   probabilities, the observed range for `orm`).
 * The simultaneous critical value is found by simulation. Use `set.seed()`
   before `term_predictions()` for exactly reproducible bands.
+* Regions with few observations (faded with `show_support = TRUE`) are
+  extrapolations, whatever the band says.
 * The data are observational and the sample is small; the surfaces show
   associations, not effects.
+
+## Where next
+
+| Vignette | What it shows |
+|:--|:--|
+| `vignette("model_types")` | Every supported model, with real data: logistic, Firth, Cox (including time-dependent and landmark), mixed models, GEE, GAM |
+| `vignette("parameterized_models")` | Plotting over derived quantities, e.g. a model in creatinine shown over eGFR, and curves through a heatmap |
+| `vignette("coverage_study")` | Validation: a simulation study of the bands' coverage, a comparison with rms, and what to report in a publication |
+
+termeffects began as p-ggeffects, written by Lukas Bolsinger as an
+extension of the ggeffects package with a focus on non-linear interactions:
+regular grids for heatmaps, simultaneous inference and parameterized models.
+termeffects keeps these ideas, but computes the predictions and their joint
+uncertainty itself and no longer depends on ggeffects.

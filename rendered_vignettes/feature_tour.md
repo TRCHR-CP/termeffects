@@ -1,10 +1,12 @@
 # A tour of every feature
 
 This vignette uses every function in termeffects once, on the
-`heartfailure` data. It is meant for trying the package out: open
-`vignettes/feature_tour.Rmd` in RStudio and run it chunk by chunk. Each
-section ends with **Check:**, saying what you should see. Features that
-came from Lukas Bolsinger’s p-ggeffects are marked *(from p-ggeffects)*.
+`heartfailure` data. It is meant for checking the package by hand: open
+`validation/feature_tour.Rmd` in RStudio and run it chunk by chunk (it
+is not part of the installed package; `validation/render_vignettes.R`
+renders it to `rendered_vignettes/`). Each section ends with **Check:**,
+saying what you should see. Features that came from Lukas Bolsinger’s
+p-ggeffects are marked *(from p-ggeffects)*.
 
 The other vignettes explain the ideas; this one only shows that
 everything works.
@@ -580,7 +582,7 @@ parameterizations(pfit)
 #> $creatinine
 #> function (log_creatinine) 
 #> (exp(log_creatinine))
-#> <environment: 0x598474478f40>
+#> <environment: 0x5bc4fe540c40>
 class(original_model(pfit))
 #> [1] "lm"
 

@@ -1,8 +1,9 @@
 """Track-changes view of the student's vignettes.
 
 Compares each vignette as Lukas Bolsinger wrote it (git commit 2de18bc,
-"Add the student's four vignettes, unchanged") with the current version in
-vignettes/, word by word, and writes one HTML page in which deleted text is
+"Add the student's four vignettes, unchanged") with its last version before
+the vignettes were reorganised (git tag before-vignette-reorg; their content
+now lives in termeffects.Rmd and parameterized_models.Rmd), word by word, and writes one HTML page in which deleted text is
 struck through in red and inserted text is underlined in green, like tracked
 changes in Word.
 
@@ -17,6 +18,7 @@ import subprocess
 from pathlib import Path
 
 ORIGINAL_COMMIT = "2de18bc"
+PORTED_TAG = "before-vignette-reorg"
 VIGNETTES = [
     ("introduction.Rmd", "introduction_p_ggeffects.Rmd"),
     ("parameterized_models.Rmd", "introduction_parameterized_model.Rmd"),
@@ -56,7 +58,8 @@ def main():
     sections, toc = [], []
     for current, student_name in VIGNETTES:
         old = original(current)
-        new = Path("vignettes", current).read_text(encoding="utf-8")
+        new = subprocess.run(["git", "show", f"{PORTED_TAG}:vignettes/{current}"],
+                             capture_output=True, text=True, encoding="utf-8", check=True).stdout
         body, counts = redline(old, new)
         anchor = current.replace(".", "-")
         toc.append(f'<li><a href="#{anchor}">{current}</a> (student: {student_name}): '

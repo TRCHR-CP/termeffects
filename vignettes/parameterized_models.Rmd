@@ -1,204 +1,356 @@
 ---
-title: "Parameterized models"
-output: rmarkdown::html_vignette
+title: "Parameterized models: plotting over derived quantities"
+output:
+  rmarkdown::html_vignette:
+    toc: true
 vignette: >
-  %\VignetteIndexEntry{Parameterized models}
+  %\VignetteIndexEntry{Parameterized models: plotting over derived quantities}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
 
-> **About this vignette.** Written by Lukas Bolsinger for p-ggeffects (original file `introduction_parameterized_model.Rmd`) and ported to termeffects by Brigitte Mueller. His text is kept; the code now uses the termeffects functions (`ggpredict()` became `term_predictions()`, `plot(..., "heatmap")` became `term_heatmap()`, layers became `term_layer()`), and held covariates are at their median or most common value. Also corrected: a typo (`pmodel`) that stopped two chunks from running, and simulated weights with mean 7000 instead of 70. Natural splines (`ns()`) are replaced by restricted cubic splines (`rcs()`), as used in our team. The model with `%ia%` is now fitted with `ols()` instead of `lm()`: in `lm()`, `%ia%` recomputes the spline knots from the new data at prediction time, so the predictions (and the earlier figures) were wrong. Every change is marked in `validation/output/vignette_track_changes.html` (struck through: removed; underlined: added), or run `git diff 2de18bc -- vignettes/parameterized_models.Rmd`.
-
-```{r set-options, echo = FALSE}
+```{r set-options, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "#>",
-  dev = "png",
   fig.width = 7,
-  fig.height = 3.5,
+  fig.height = 4,
   message = FALSE,
-  warning = FALSE
+  warning = FALSE,
+  eval = requireNamespace("rms", quietly = TRUE)
 )
-options(width = 800)
+```
 
+Parameterized models were developed by Lukas Bolsinger in p-ggeffects, the
+predecessor of termeffects. This vignette combines his three vignettes on
+them (the overview, the eGFR demonstration and the renal-index example);
+their text is kept where it still applies.
+
+```{r packages}
 library(termeffects)
 library(rms)
+library(ggplot2)
 set.seed(1)
 ```
 
+## The idea
 
-# parameterized_model objects
+A model is fitted in its own predictors, e.g. creatinine and age, but a
+reader may think in a quantity derived from them, e.g. eGFR, which depends on
+creatinine, age and sex. A **parameterized model** keeps the fitted model
+unchanged and expresses some of its predictors as functions of new
+variables, so that predictions, bands and plots can be made over the new
+variables. Nothing is refitted: the coefficients and their covariance stay
+those of the original model.
 
-## Overview
-A `parameterized_model` is a data structure consiting of a tuple of a fitted regression
-model, and a collection of maps that parameterize the continuous predictive variables
-of the model. Moreover, there exists some auxiliary tracked information, ie. new parameters,
-and a parameterization history.
+A `parameterized_model` is a data structure consisting of a fitted regression
+model and a collection of maps that parameterize the continuous predictor
+variables of the model. Moreover, it tracks auxiliary information: the new
+parameters, and a parameterization history.
 
-The primary objective of parameterized models is the visualization of higher order data in terms of
-lower order parameteric families via marginalization. As an example, consider the fitted regression model:
+The primary objective of parameterized models is the visualization of higher
+order data in terms of lower order parametric families via marginalization.
+As an example, consider the fitted regression model
 $$
-y = f(x_1, \ldots, x_n; \beta)\quad\text{ with parameterizations}\quad x_i = h_i(z_1, \ldots, z_m)
+y = f(x_1, \ldots, x_n; \beta)\quad\text{ with parameterizations}\quad x_i = h_i(z_1, \ldots, z_m).
 $$
-Viewing the regression model as a function, notice that the data of the parameterized model determines
-the data of a model by pulling back by the $h_i$. We do note however, that the observed data for which
-$f_\beta = f(-; \beta)$ was fitted may not be contained in the image of $h = (h_i)_i$, and so the parameterized model
-$f_\beta \circ h$ is almost never determined by the initial observations. For this reason, this parameterization
-is primarily a tool for developing intuitions and visualizations.
+The observed data for which $f_\beta = f(-; \beta)$ was fitted may not be
+contained in the image of $h = (h_i)_i$, and so the parameterized model
+$f_\beta \circ h$ is almost never determined by the initial observations. For
+this reason, this parameterization is primarily a tool for developing
+intuitions and visualizations. Ordinary marginalization, holding $x_i = c$,
+is the special case $\phi(x_1, \ldots, x_{n-1}) = (x_1, \ldots, x_{i-1}, c,
+x_i, \ldots, x_{n-1})$; plotting at a few values of a variable of interest
+generalizes to plotting along any family of curves.
 
-Indeed, in sufficiently nice scenarios (for instance if $h$ is smooth), the rank of the parameterized
-model (viewed as the composition $f_\beta \circ h$) is less than or equal to the rank of $f_\beta$.
-Particularly, by fixing arguments in $z$ (to obtain planes), we obtain more varied marginalizations
-of $f_\beta$.
+## A simple example: weight, height and BMI
 
-## Simple Example
+Suppose we have a regression model $y \sim f_\beta(\text{weight},
+\text{height}, \ldots)$. With the parameterization $(t, c, \ldots) \mapsto
+(ct^2, t, \ldots)$, fixing $c$ gives people with the same BMI and varying
+height, and fixing $t$ gives people with the same height and varying weight
+and BMI.
 
-Suppose we have some regression model $y \sim f_\beta(\operatorname{weight}, \operatorname{height}, \ldots)$. With parameterizations $(t, c, \ldots) \mapsto (ct^2, t, \ldots) = (\operatorname{weight}(t), \operatorname{height}(t), \ldots)$ (where the other function are the identity), we obtain co-level sets in c and $\ldots$ of subsets with fixed BMI,
-and co-level sets in $t$ and $\ldots$ of subsets with fixed height, but variable weight and BMI.
-
-```{r}
-
+```{r bmi-model}
 w <- rnorm(500, mean = 70, sd = 4)
 h <- rnorm(500, mean = 170, sd = 10)
-
 a <- rnorm(500)
+y <- a + w / h^2 + h + w + w^2 * h + rnorm(500)
 
-y <- a + w/h^2 + h + w + w^2 * h + rnorm(500)
-
-
-# model example
 model <- ols(y ~ rcs(w, 4) + rcs(h, 4) + rcs(w, 4) %ia% rcs(h, 4) + a)
 
-# parameterize model
-pmodel1 <- parameterize(model, parameterizations = list(w = \(t,c) c*t^2, h = \(t) t))
+# weight = c * t^2 and height = t: c is BMI (in kg/cm^2), t is height
+pmodel1 <- parameterize(model, parameterizations = list(w = \(t, c) c * t^2, h = \(t) t))
 
-# parameterized model attributes
 print(pmodel1, show_history = TRUE)
-
-# underlying model
-original_model(pmodel1)
-
-# model parameterizations
 parameterizations(pmodel1)
-
-# new model variables
 parameter_variables(pmodel1)
 ```
 
-Furthermore, for a data grid `data = data.frame(t = ..., c = ..., a = ...)`, with `predict(pmodel, newdata = data)`, we obtain predictions from the mechanism:
+The functions for parameterized models:
 
-```{r}
-# predict.parameterized_model <- function(object, newdata, ...) {
-#  ...
-#
-#  newdata <- parameterize_data(object, newdata)
-#
-#  predict(object$model, newdata = newdata, ...)
-#}
+* **`parameterize()`**: parameterize one or more predictors of a fitted
+  model. Takes a model and a named list of functions, expressions, or
+  character strings defining the parameterizations. When applied to an
+  existing `parameterized_model`, the new parameterizations are composed with
+  the existing ones and recorded in the parameterization history.
+* **`parameterized_model()`**: the low-level constructor underlying
+  `parameterize()`.
+* **`predict()`**: transforms `newdata` according to the model's
+  parameterizations and then calls the original model's `predict()` method.
+  `newdata` is therefore given in the parameter variables.
+* **`original_model()`**: the underlying fitted model.
+* **`parameterizations()`**: the parameterization functions; `level`
+  composes a number of the most recent steps from the history.
+* **`parameter_variables()`**: the variables the parameterized model depends
+  on, which must be supplied in prediction data.
+* **`parameterize_data()`**: applies the parameterizations to a data frame,
+  adding the parameterized predictors.
+* **`print()`**: the underlying model, its parameter variables and the
+  current parameterizations; `show_history = TRUE` also shows the earlier
+  steps.
+* **`is.parameterized_model()`**: tests whether an object is a
+  `parameterized_model`.
 
+`predict()` works by computing the original predictors and predicting from
+the original model:
+
+```{r bmi-predict}
 # t is height in cm, so c is BMI in kg/cm^2 (BMI 18-22 kg/m^2 = 0.0018-0.0022)
-df <- as.data.frame(
-    expand.grid(t = 150:200, c = c(18, 20, 22) / 1e4, a = 0)
-  )
-
+df <- expand.grid(t = 150:200, c = c(18, 20, 22) / 1e4, a = 0)
 head(parameterize_data(pmodel1, newdata = df))
-
 head(predict(pmodel1, newdata = df))
-
-```
-where `parameterize_data` evaluates the parameterization on the new data.
-
-## term_predictions with parameterized_models.
-
-`term_predictions()` and `term_grid()` are implemented for parameterized_model objects. As
-with fitted regression models, the user specifies their primary terms of interest `term_predictions(model, terms, ...)` together
-with auxiliary options. These terms are variables of the parameterizations, or those untransformed variables:
-```
-term_predictions(pmodel, terms = c("t", "c"), values = list(c = c(1, 2, 3)), ...)
-```
-For standard regression models, for unconstrained terms--such as "t"--bounds, and regularly spaced sample points are determined by the data (the extrema of the observations). As discussed above, such a method does not extend to parameterized_models. Rather, for all new parameter variables, the largest box (centred at the origin in the parameter space) whose image stays within the extrema of the observations is computed. Where this is not possible (consider a parameterized point or circle), a warning asks for the range to be given with `values`.
-
-## term_layer objects
-Given some base `term_predictions` object (an adjusted prediction grid over two continuous focal terms, as drawn by `term_heatmap()`), a `term_layer` object holds predictions along curves through it, where the underlying model is a 'parameterization' of the base object's underlying model subject to some restrictions:
- - the held-constant variables are all equal to those of the base
- - only the two primary variables were parameterized
- - the total number of new parameters is at most two
-In particular, each layer either induces a 1-parametric curve or 2-parameteric curve (which induces a set of 1-parametric curves) in the domain of the base model.
-
-Ex:
-``` {r}
-x <- rnorm(500)
-z <- rnorm(500)
-
-y <- x - z + rnorm(500, sd = 2)
-
-
-model <- lm(y ~ x + z)
-pmodel <- parameterize(model, list(x = "t^3 + s", z = "s - t"))
-
-pout <- term_predictions(pmodel, terms = c("t", "s"))
-
-ppout1 <- term_layer(pout,
-                     parameterization = list(t = "sin(w)",
-                                             s = "cos(w)"),
-                     terms = "w",
-                     values = list(w = seq(0, 2 * pi, length.out = 60)))
-
-ppout2 <- term_layer(pout,
-                     parameterization = list(t = "r * sin(w)",
-                                             s = "r * cos(w)"),
-                     terms = c("w", "r"),
-                     values = list(w = seq(0, 2 * pi, length.out = 60), r = c(0.5, 1, 1.5)))
-
-
-ppout1
-
-ppout2
-
-term_heatmap(pout, layers = ppout1, show_support = TRUE, support_prob = 0.975)
-
-term_curves(ppout2)
-
 ```
 
+`term_predictions()` and `term_heatmap()` work with parameterized models as
+with fitted models. Here is the prediction over BMI and height:
 
-# Plotting
-termeffects provides _two_ plot types for surfaces: heatmaps, and heatmaps with
-overlays of 1-parametric curves. Additionally, as a substitute for plotting observed data, it estimates the density of the
-initial observations using kernel smoothing, and fades the regions where it is low.
-
-Heatmaps are drawn on regular grids, which `term_predictions()` generates.
-
-
-
-
-```{r}
-
-w <- rnorm(500, mean = 70, sd = 4)
-h <- rnorm(500, mean = 170, sd = 10)
-
-a <- rnorm(500)
-
-y <- a + w/h^2 + h + w + w^2 * h + rnorm(500)
-
-
-# model example
-model <- ols(y ~ rcs(w, 4) + rcs(h, 4) + rcs(w, 4) %ia% rcs(h, 4) + a)
-
-# parameterize model
-pmodel1 <- parameterize(model, parameterizations = list(w = \(t,c) c*t^2, h = \(t) t))
-
+```{r bmi-heatmap}
 pout <- term_predictions(pmodel1, terms = c("c", "t"),
                          values = list(c = seq(0.0020, 0.0030, length.out = 30),
                                        t = seq(150, 190, length.out = 30)),
                          at = list(a = 1))
-
 term_heatmap(pout, show_support = TRUE)
-
 ```
 
+### The prediction range of new variables
 
+For ordinary predictors, the grid spans the observed range. For new
+variables there are no observations. Unless the ranges are given with
+`values` (as above, and usually clearer), `term_predictions()` searches for
+the largest box, centred at zero in the new variables, whose image stays
+within the observed range of the original predictors. Where this is not
+possible (e.g. a parameterization onto a point or circle) it warns and asks
+for the range to be given with `values`.
 
-# Simultaneous confidence bands
+## A clinical example: eGFR in heart failure
 
-Every `term_predictions()` result also contains a simultaneous confidence band (`band.low`, `band.high`), which covers the predictions at all grid points at once. For parameterized models it is simultaneous over the grid of the new variables. The vignette "termeffects: introduction" explains how the band is computed and how to test a reference function against it.
+This example, from Lukas's heart-failure demonstration, asks how left
+ventricular ejection fraction (LVEF) is associated with kidney function. The
+model is fitted in serum creatinine; we show it over the **estimated
+glomerular filtration rate (eGFR)**, which clinicians use. The analysis is
+illustrative and associative, not causal; the data are observational and
+small (299 patients).
+
+### The model
+
+The model allows a non-linear creatinine–sodium interaction and a non-linear
+creatinine–age interaction; sex and diabetes are adjustment variables. Sex
+and diabetes are coded 0/1 so that they can be fixed in the parameterization.
+Two interactions are ambitious for 299 patients; in an applied analysis,
+check the model before interpreting it.
+
+```{r hf-model}
+dat <- heartfailure[c("ejection_fraction", "creatinine", "sodium", "age", "sex", "diabetes")]
+names(dat) <- c("ejection_fraction", "serum_creatinine", "serum_sodium", "age", "sex", "diabetes")
+dat$sex <- as.integer(dat$sex == "Male")
+dat$diabetes <- as.integer(dat$diabetes == "Yes")
+
+model_hf <- lm(ejection_fraction ~
+                 rcs(serum_creatinine, 4) * rcs(serum_sodium, 4) +
+                 rcs(serum_creatinine, 4) * rcs(age, 4) +
+                 sex + diabetes,
+               data = dat)
+```
+
+### The eGFR transformation
+
+We use the **2021 CKD-EPI creatinine equation**, which depends on serum
+creatinine $C$ (mg/dL), age $A$ (years), and sex:
+
+$$
+\text{eGFR} = 142 \cdot \min(C/\kappa, 1)^{\alpha} \cdot \max(C/\kappa, 1)^{-1.200} \cdot 0.9938^{A} \cdot (1.012 \text{ if female}),
+$$
+with $\kappa = 0.7$, $\alpha = -0.241$ for women and $\kappa = 0.9$,
+$\alpha = -0.302$ for men. It is an estimated kidney-function measure, not a
+direct measurement, and its application to these historical records is
+retrospective.
+
+The parameterization needs the inverse: the creatinine at which a patient of
+a given age and sex has a given eGFR.
+
+```{r egfr-functions}
+egfr_ckdepi <- function(creatinine, age, sex) {
+  kappa <- ifelse(sex == 1, 0.9, 0.7)
+  alpha <- ifelse(sex == 1, -0.302, -0.241)
+  142 * pmin(creatinine / kappa, 1)^alpha * pmax(creatinine / kappa, 1)^-1.200 *
+    0.9938^age * ifelse(sex == 1, 1, 1.012)
+}
+
+creatinine_from_egfr <- function(egfr, age, sex) {
+  kappa <- ifelse(sex == 1, 0.9, 0.7)
+  alpha <- ifelse(sex == 1, -0.302, -0.241)
+  ratio <- egfr / (142 * 0.9938^age * ifelse(sex == 1, 1, 1.012))
+  kappa * ifelse(ratio >= 1, ratio^(1 / alpha), ratio^(1 / -1.200))
+}
+
+# check: the inverse undoes the equation
+creatinine_from_egfr(egfr_ckdepi(c(0.6, 1, 2.5), age = 65, sex = 1), age = 65, sex = 1)
+```
+
+The transformation depends on sex, so sex is fixed rather than averaged: all
+eGFR plots below are for men. The original model still includes sex as an
+adjustment variable.
+
+### Predictions over eGFR
+
+We do **not** refit the model: for a given eGFR and age, the
+parameterization computes the corresponding creatinine.
+
+```{r egfr-parameterize}
+pmodel_egfr <- parameterize(
+  model_hf,
+  parameterizations = list(
+    serum_creatinine = function(egfr, age) creatinine_from_egfr(egfr, age, sex = 1),
+    sex = function(egfr, age) rep(1, length.out = max(length(egfr), length(age)))
+  )
+)
+parameter_variables(pmodel_egfr)
+
+pred_egfr <- term_predictions(
+  pmodel_egfr,
+  terms = c("egfr", "age"),
+  values = list(egfr = seq(20, 90, by = 2), age = c(50, 65, 80)),
+  at = list(diabetes = 0)
+)
+term_curves(pred_egfr, band = "both")
+```
+
+At the ends of the eGFR range the bands widen sharply: few patients of
+these ages have such creatinine values, so these parts of the curves are
+close to extrapolation. The band is simultaneous over the three eGFR curves (`ci_scope = "curve"`
+would make it simultaneous for each age separately; state that choice in a
+published figure).
+
+### Constant-eGFR curves on the heatmap
+
+The same idea works inside a heatmap. Over age and creatinine, the curves
+of constant eGFR (30, 45, 60 and 90 mL/min/1.73 m²) are paths through the
+same two-dimensional plane, not extra axes. `term_layer()` computes them and
+the predictions along them:
+
+```{r egfr-layer}
+pred_age_creat <- term_predictions(model_hf, terms = c("age", "serum_creatinine"),
+                                   values = list(serum_creatinine = seq(0.5, 3, length.out = 30)),
+                                   at = list(sex = 1, diabetes = 0))
+
+# age runs along each curve (t); creatinine is the value giving that curve's
+# eGFR at that age
+egfr_layer <- term_layer(
+  pred_age_creat,
+  parameterization = list(
+    age = function(t) t,
+    serum_creatinine = function(t, egfr) creatinine_from_egfr(egfr, age = t, sex = 1)
+  ),
+  terms = c("t", "egfr"),
+  values = list(t = seq(min(dat$age), max(dat$age), by = 1), egfr = c(30, 45, 60, 90))
+)
+
+term_heatmap(pred_age_creat, layers = egfr_layer, show_support = TRUE) +
+  labs(x = "Age (years)", y = "Serum creatinine (mg/dL)")
+```
+
+Along a constant-eGFR curve, does predicted LVEF change with age? If so,
+eGFR alone does not capture the fitted age–creatinine association. The layer
+holds the predictions along each curve, with a band that is simultaneous over
+the curves:
+
+```{r egfr-layer-curves}
+term_curves(egfr_layer) + labs(x = "Age (years)")
+```
+
+## Layers in general
+
+Heatmaps are hard to read precisely: colours are difficult to distinguish
+and to compare between points. Layers annotate a heatmap with a family of
+curves and give the predictions along them.
+
+Given a `term_predictions()` result over two continuous focal variables, a
+`term_layer()` holds predictions along curves through it, where the
+underlying model is a parameterization of the base object's model subject to
+some restrictions:
+
+* the held-constant variables are all equal to those of the base,
+* only the two focal variables are parameterized,
+* the total number of new parameters is at most two.
+
+Each layer is therefore one curve, or a family of curves indexed by a second
+parameter. Here, circles through a surface:
+
+```{r layer-circles}
+x <- rnorm(500)
+z <- rnorm(500)
+y <- x - z + rnorm(500, sd = 2)
+
+model <- lm(y ~ x + z)
+pmodel <- parameterize(model, list(x = "t^3 + s", z = "s - t"))
+pout <- term_predictions(pmodel, terms = c("t", "s"))
+
+circle <- term_layer(pout,
+                     parameterization = list(t = "sin(w)", s = "cos(w)"),
+                     terms = "w",
+                     values = list(w = seq(0, 2 * pi, length.out = 60)))
+circles <- term_layer(pout,
+                      parameterization = list(t = "r * sin(w)", s = "r * cos(w)"),
+                      terms = c("w", "r"),
+                      values = list(w = seq(0, 2 * pi, length.out = 60), r = c(0.5, 1, 1.5)))
+
+term_heatmap(pout, layers = circles, show_support = TRUE)
+term_curves(circle, show_direction = TRUE)
+```
+
+`show_direction = TRUE` draws arrows along the curves, in the direction of
+their first variable.
+
+## Testing a reference function
+
+`test_simultaneous_predictions()` compares the predictions with a reference
+function over the grid. For a parameterized model, the reference function is
+written in the **original** predictors:
+
+```{r test-parameterized}
+pmodel <- parameterize(model, parameterizations = list(x = \(t, s) t^3 + s, z = \(t) t^2))
+pred <- term_predictions(pmodel, terms = c("t", "s"), values = list(s = c(-1, 0, 1)))
+test <- test_simultaneous_predictions(pred, f = \(x, z) x - z)
+attr(test, "all_inside")
+```
+
+## Limitations of parameterization
+
+* **Parameterization inputs are treated as numeric.** This makes categorical
+  transformations unsuitable and can remove the meaning of factor levels.
+  The implementation does not verify that transformed predictors are finite
+  or scientifically plausible.
+* **Unknown parameterization names are an error.** Only names matching model
+  predictors (or variables of an existing parameterization) are accepted, so
+  a typo stops with a message.
+* **The default ranges of new variables are heuristic**: symmetric boxes
+  around zero, shrunk until their image fits within the observed range of
+  the original predictors, then expanded dimension by dimension. For bounded,
+  periodic, many-to-one, or non-rectangular mappings such a box may omit
+  valid regions or include combinations outside the observed range; its
+  image is estimated by random sampling and local optimization, which can
+  miss extrema. Giving the ranges with `values` avoids the search.
+* **Bands and tests are for the plotted grid** at the stated held values; a
+  layer restricts this further to its curves (see "What the bands do and do
+  not cover" in `vignette("termeffects")`).

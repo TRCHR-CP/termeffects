@@ -1,4 +1,7 @@
-# termeffects 0.0.0.9000
+# termeffects 0.1.0
+
+First version for use within the team (not on CRAN).
+
 
 * New `term_grid()`: builds a prediction grid in which the focal variables
   vary and all other predictors are held at their median (numeric) or most

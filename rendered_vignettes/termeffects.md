@@ -102,7 +102,8 @@ of these together:
 ``` r
 fig <- term_figure(surface, cuts = cut_values, show_data = TRUE)
 names(fig)
-#> [1] "heatmap"     "curves"      "uncertainty" "covariates"  "caption"     "model"
+#> [1] "heatmap"     "curves"      "uncertainty" "covariates"  "caption"    
+#> [6] "model"
 ```
 
 `fig$heatmap` and `fig$curves` are ordinary ggplot2 plots, and
@@ -184,20 +185,23 @@ The numbers behind the plots are in an ordinary data frame:
 ``` r
 cuts
 #> Predictions over creatinine, sodium ( 150 grid points, response scale )
-#> Held constant: age = 60 (median), sex = Male (most common), diabetes = No (most common), anaemia = No (most common), hblood_pressure = No (most common), smoking = No (most common), platelets = 262 (median), cpk_enzyme = 250 (median)
-#> Critical values for 95% intervals (analytic): pointwise 1.960, simultaneous 2.953
+#> Held constant: age = 60 (median), sex = Male (most common), diabetes =
+#>   No (most common), anaemia = No (most common), hblood_pressure = No
+#>   (most common), smoking = No (most common), platelets = 262 (median),
+#>   cpk_enzyme = 250 (median)
+#> Critical values for 95% intervals (analytic): pointwise 1.960, simultaneous 2.942
 #> 
 #>  creatinine sodium estimate conf.low conf.high band.low band.high
-#>      0.5000    130    29.42    16.91     51.91    14.68     60.67
-#>      0.5714    130    30.79    18.85     49.80    15.80     58.06
-#>      0.6429    130    32.21    21.30     47.71    17.86     55.18
-#>      0.7143    130    33.68    24.20     45.84    20.75     52.11
-#>      0.7857    130    35.15    27.27     44.52    24.03     49.47
-#>      0.8571    130    36.47    29.69     44.18    26.71     48.25
-#>      0.9286    130    37.44    30.88     44.79    27.95     48.62
-#>      1.0000    130    37.87    31.15     45.40    28.14     49.28
-#>      1.0714    130    37.66    31.10     45.00    28.16     48.81
-#>      1.1429    130    37.01    30.99     43.73    28.27     47.27
+#>      0.5000    130    29.42    16.91     51.91    14.69     60.59
+#>      0.5714    130    30.79    18.85     49.80    15.82     57.98
+#>      0.6429    130    32.21    21.30     47.71    17.89     55.11
+#>      0.7143    130    33.68    24.20     45.84    20.79     52.05
+#>      0.7857    130    35.15    27.27     44.52    24.06     49.42
+#>      0.8571    130    36.47    29.69     44.18    26.74     48.20
+#>      0.9286    130    37.44    30.88     44.79    27.98     48.58
+#>      1.0000    130    37.87    31.15     45.40    28.17     49.23
+#>      1.0714    130    37.66    31.10     45.00    28.19     48.77
+#>      1.1429    130    37.01    30.99     43.73    28.30     47.24
 #> ... with 140 more rows
 ```
 
@@ -206,8 +210,29 @@ error: 1.96 for a pointwise 95% interval, and a larger value for the
 simultaneous band.
 
 To test a specific curve, for example a published reference, against the
-band, see `test_simultaneous_predictions()` and the vignette
-“termeffects: introduction”.
+band, see “Testing a reference curve” below.
+
+## Testing a reference curve
+
+Sometimes the question is whether the data are compatible with one
+**specific** curve or surface, e.g. a published reference.
+`test_simultaneous_predictions()` checks whether that reference function
+lies inside the simultaneous band everywhere on the grid. The function’s
+arguments are named after the focal variables:
+
+``` r
+f0 <- function(creatinine, sodium) 40 - 3 * (creatinine - 1) + 0.2 * (sodium - 137)
+test <- test_simultaneous_predictions(cuts, f = f0)
+attr(test, "all_inside")
+#> [1] FALSE
+plot(test)
+```
+
+![](termeffects_files/figure-gfm/reference-test-1.png)<!-- -->
+
+This tests equality to this *particular* function, at the chosen held
+values. It is not a general test of linearity: rejecting it does not
+prove non-linearity, and not rejecting it does not establish linearity.
 
 ## Holding other variables at chosen values
 
@@ -353,16 +378,66 @@ The same functions work for:
 Use `scale = "link"` to see the linear predictor (e.g. log-odds)
 instead.
 
+## How the band is computed
+
+For a prediction $`\hat f(x)`$ with standard error $`\mathrm{SE}(x)`$,
+the pointwise interval is
+``` math
+\hat f(x) \pm t_{1-\alpha/2}\,\mathrm{SE}(x),
+```
+which only makes a statement about one point $`x`$ at a time. The
+simultaneous band has the same form,
+``` math
+\hat f(x) \pm c_\alpha\,\mathrm{SE}(x),
+```
+but $`c_\alpha`$ is the 95% quantile of
+$`\max_x |\hat f(x) - f(x)| / \mathrm{SE}(x)`$, the largest standardized
+error over all points of the grid. It therefore takes the correlation
+between neighbouring predictions into account and is far smaller than a
+Bonferroni correction. There is no closed form for this quantile, so
+termeffects simulates it from the estimated distribution of the
+coefficients (normal, or t for models with residual degrees of freedom),
+or, with `ci_method = "bootstrap"`, from bootstrap refits. For
+generalized linear models the band is computed on the scale of the
+linear predictor and then transformed. `vignette("coverage_study")`
+shows that the bands reach their 95% coverage in simulations, and agree
+with `rms::Predict(conf.type = "simultaneous")` where rms can compute
+them.
+
 ## What the bands do and do not cover
 
 - Bands are simultaneous **over the grid of points that is plotted**,
   with the other variables held at the stated values. A finer grid makes
   the band closer to one for the whole continuous range.
+- **The held values are part of the result.** The other variables have
+  been fixed at the stated values; the band says nothing about other
+  values of them, or about their interactions. Changing the held values
+  can change the surface.
+- `ci_scope` sets over which points the band is simultaneous: the whole
+  grid (`"global"`, default), each panel (`"faceted"`) or each curve
+  (`"curve"`). State the choice in a published figure.
 - Bands are computed on the scale of the linear predictor and then
   transformed, so they stay within the possible range of the outcome
   (0–1 for probabilities, the observed range for `orm`).
 - The simultaneous critical value is found by simulation. Use
   `set.seed()` before `term_predictions()` for exactly reproducible
   bands.
+- Regions with few observations (faded with `show_support = TRUE`) are
+  extrapolations, whatever the band says.
 - The data are observational and the sample is small; the surfaces show
   associations, not effects.
+
+## Where next
+
+| Vignette | What it shows |
+|:---|:---|
+| `vignette("model_types")` | Every supported model, with real data: logistic, Firth, Cox (including time-dependent and landmark), mixed models, GEE, GAM |
+| `vignette("parameterized_models")` | Plotting over derived quantities, e.g. a model in creatinine shown over eGFR, and curves through a heatmap |
+| `vignette("coverage_study")` | Validation: a simulation study of the bands’ coverage, a comparison with rms, and what to report in a publication |
+
+termeffects began as p-ggeffects, written by Lukas Bolsinger as an
+extension of the ggeffects package with a focus on non-linear
+interactions: regular grids for heatmaps, simultaneous inference and
+parameterized models. termeffects keeps these ideas, but computes the
+predictions and their joint uncertainty itself and no longer depends on
+ggeffects.

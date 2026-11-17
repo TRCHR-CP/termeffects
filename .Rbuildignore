@@ -12,3 +12,6 @@
 ^\.claude$
 ^# Code for testing the package by hand\.R$
 ^rendered_vignettes$
+^_pkgdown\.yml$
+^docs$
+^pkgdown$

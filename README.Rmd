@@ -31,6 +31,11 @@ termeffects shows what such a model predicts:
   band** that covers all curves at once, so their shapes can be judged and
   compared without the excess false findings of pointwise intervals.
 
+**Status:** version 0.1.0, in development and used within our group; not
+yet on CRAN. The bands are validated by simulation (see
+`vignette("coverage_study")`); for Cox models with few events per model
+coefficient they are too narrow, so read them as approximate there.
+
 It works with models you have already fitted: `rms::orm()`, `ols()`, `lrm()`,
 `cph()`, `lm()`, `glm()` (including Firth's logistic regression with
 `logistf` or `brglm2`), `survival::coxph()`, `lme4::lmer()`/`glmer()`,
@@ -93,9 +98,8 @@ After installing, `browseVignettes("termeffects")` lists the vignettes:
 |:--|:--|
 | `vignette("termeffects")` | **Start here.** Heatmaps, cuts, figure captions, pointwise vs. simultaneous bands |
 | `vignette("model_types")` | Every supported model, with real data: logistic, Firth, Cox (including time-dependent and landmark), mixed models, GEE, GAM |
-| `vignette("parameterized_models")` | Plotting over derived quantities, e.g. a model in log(creatinine) shown over creatinine |
+| `vignette("parameterized_models")` | Plotting over derived quantities, e.g. a model in creatinine shown over eGFR, and curves through a heatmap |
 | `vignette("coverage_study")` | Validation: a simulation study of the bands' coverage, a comparison with rms, and what termeffects adds to rms |
-| `vignette("feature_tour")` | Every function and option in one place |
 
 ## How the bands are computed
 
