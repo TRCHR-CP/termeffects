@@ -10,7 +10,7 @@ Description: Computes adjusted predictions with simultaneous confidence
     bands over prediction curves and two-variable interaction surfaces,
     including parameterized (transformed) predictor coordinates, and
     visualizes them as term plots and heatmaps.
-URL: https://github.com/TRCHR-CP/termeffects
+URL: https://github.com/TRCHR-CP/termeffects, https://trchr-cp.github.io/termeffects/
 BugReports: https://github.com/TRCHR-CP/termeffects/issues
 License: MIT + file LICENSE
 Encoding: UTF-8

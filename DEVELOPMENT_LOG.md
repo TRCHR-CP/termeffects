@@ -5,6 +5,26 @@ user-facing summary; this log also covers decisions, validation and tooling.
 
 ---
 
+## 2026-11-17 — Restored Lukas's questions and qualifications; website
+
+Brigitte reviewed the side-by-side view of the reorganisation and asked to
+keep sections 8 and 9 of the eGFR vignette and the renal-index model text.
+
+- termeffects.Rmd: "Questions this figure answers" after the heatmap, the
+  pointwise-vs-simultaneous plot and the reference test (from section 8);
+  new section "Before interpreting the plots" (section 9: causality, small
+  samples, sparse support, consistent adjustment, separate fitting from
+  presentation); model paragraph rewritten after Lukas's renal-index text
+  (restricted cubic splines, interactions, no grid during fitting).
+- parameterized_models.Rmd: model paragraph restored from the renal-index
+  and eGFR vignettes.
+- Website: `.github/workflows/pkgdown.yaml` builds the pkgdown site on every
+  push to main and publishes it to the gh-pages branch; URL added to
+  DESCRIPTION and `_pkgdown.yml`; `docs/` ignored.
+- Release tag v0.1.0.
+
+---
+
 ## 2026-11-17 — Vignettes reorganised; version 0.1.0
 
 Brigitte agreed to the reorganisation postponed on 2026-11-05. State before

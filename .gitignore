@@ -10,3 +10,6 @@ tests/testthat/Rplots.pdf
 # Claude working notes and settings
 Claude_memory.md
 .claude/
+
+# pkgdown website (built by GitHub Actions into the gh-pages branch)
+docs/

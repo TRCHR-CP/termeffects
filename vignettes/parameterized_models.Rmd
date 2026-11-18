@@ -154,11 +154,16 @@ small (299 patients).
 
 ### The model
 
-The model allows a non-linear creatinine–sodium interaction and a non-linear
-creatinine–age interaction; sex and diabetes are adjustment variables. Sex
-and diabetes are coded 0/1 so that they can be fixed in the parameterization.
-Two interactions are ambitious for 299 patients; in an applied analysis,
-check the model before interpreting it.
+Restricted cubic splines with four knots (three degrees of freedom) allow
+non-linear main effects; their interactions allow the association with one
+predictor to vary across another. Two interactions are included to provide
+two distinct prediction surfaces (creatinine–sodium and creatinine–age). Sex
+and diabetes enter as additive adjustment terms, coded 0/1 so that they can
+be fixed in the parameterization. No prediction grid is specified during
+fitting. Two interactions are ambitious for 299 patients; in an applied
+analysis, inspect residuals and prediction uncertainty, and if necessary
+remove one interaction or use fewer knots. Do not choose the model merely to
+produce visually interesting heatmaps.
 
 ```{r hf-model}
 dat <- heartfailure[c("ejection_fraction", "creatinine", "sodium", "age", "sex", "diabetes")]

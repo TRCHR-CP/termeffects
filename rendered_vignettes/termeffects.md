@@ -28,8 +28,12 @@ values. A proportional odds model (`rms::orm`) suits an outcome like
 this: it makes no assumption about the shape of its distribution, and
 its predicted means always stay within the observed range.
 
-We let the association with serum creatinine depend on serum sodium
-through a spline interaction, and adjust for eight other covariates.
+Restricted cubic splines with four knots (three degrees of freedom)
+allow non-linear main effects of creatinine, sodium and age; the
+interaction of the creatinine and sodium splines allows the association
+with creatinine to vary across sodium. Eight other covariates enter as
+adjustment terms. No prediction grid is specified during fitting: the
+model is fitted once, and everything below only uses the fitted model.
 
 ``` r
 library(termeffects)
@@ -69,6 +73,10 @@ Colour shows the predicted mean LVEF, and the white contour lines join
 points with the same prediction. The dots are the patients. The faded
 areas lie outside the region holding 97.5% of the patients: there the
 surface is an extrapolation and should not be over-interpreted.
+
+> **Questions this figure answers.** Is there evidence of a non-linear
+> creatinine–sodium interaction? Which regions have adequate
+> observational support?
 
 ## Step 2: cuts through the surface
 
@@ -180,6 +188,10 @@ term_curves(cuts, band = "both")
 
 ![](termeffects_files/figure-gfm/both-1.png)<!-- -->
 
+> **Questions this figure answers.** How much wider are simultaneous
+> bands than pointwise intervals? Which parts of the curves are too
+> uncertain for strong conclusions?
+
 The numbers behind the plots are in an ordinary data frame:
 
 ``` r
@@ -229,6 +241,10 @@ plot(test)
 ```
 
 ![](termeffects_files/figure-gfm/reference-test-1.png)<!-- -->
+
+> **Questions this figure answers.** Is the specified reference function
+> compatible with the fitted predictions over the grid? What does the
+> test establish, and what does it not establish, about linearity?
 
 This tests equality to this *particular* function, at the chosen held
 values. It is not a general test of linearity: rejecting it does not
@@ -424,8 +440,24 @@ them.
   bands.
 - Regions with few observations (faded with `show_support = TRUE`) are
   extrapolations, whatever the band says.
-- The data are observational and the sample is small; the surfaces show
-  associations, not effects.
+
+## Before interpreting the plots
+
+1.  **No causal interpretation.** The surfaces are conditional
+    associations, here in an observational dataset.
+2.  **Small samples.** Non-linear interactions may be weakly identified
+    with few patients (299 here). Consider fewer knots, bootstrap
+    stability checks and out-of-sample validation.
+3.  **Sparse support.** Limit grids and overlays to observed or
+    well-supported regions (`values`, `show_data`, `show_support`).
+4.  **Consistent adjustment.** Check the held values printed with each
+    `term_predictions()` result and in the plot subtitle, particularly
+    for categorical covariates. When a derived quantity depends on a
+    covariate (e.g. eGFR on sex, see
+    `vignette("parameterized_models")`), fix that covariate.
+5.  **Separate fitting from presentation.** To change the grid, the held
+    values or the plotting style, change only the `term_predictions()`
+    and plotting calls; the fitted model stays the same.
 
 ## Where next
 
