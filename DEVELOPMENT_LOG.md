@@ -5,6 +5,16 @@ user-facing summary; this log also covers decisions, validation and tooling.
 
 ---
 
+## 2026-11-17 — No website for now
+
+Brigitte decided the README and `rendered_vignettes/` are enough for the
+group. Removed `.github/workflows/pkgdown.yaml` (its first run failed on
+GitHub's runner although the same build works locally; not investigated)
+and the site URL from DESCRIPTION and `_pkgdown.yml`. `_pkgdown.yml` stays,
+ready for a website later (e.g. before CRAN or the paper).
+
+---
+
 ## 2026-11-17 — Restored Lukas's questions and qualifications; website
 
 Brigitte reviewed the side-by-side view of the reorganisation and asked to
