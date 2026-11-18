@@ -36,7 +36,15 @@ jobs:
           needs: website
 
       - name: Build site
-        run: pkgdown::build_site_github_pages(new_process = FALSE, install = FALSE)
+        # errors are also written as an annotation, visible on the run's page
+        run: |
+          tryCatch(
+            pkgdown::build_site_github_pages(new_process = FALSE, install = FALSE),
+            error = function(e) {
+              msg <- paste(c(conditionMessage(e), if (!is.null(e$parent)) conditionMessage(e$parent)), collapse = " | ")
+              cat("::error::", gsub("\n", " ", msg), "\n", sep = "")
+              quit(status = 1)
+            })
         shell: Rscript {0}
 
       - name: Deploy to GitHub pages
