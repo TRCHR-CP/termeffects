@@ -10,7 +10,7 @@ dir.create(out, showWarnings = FALSE)
 
 # the package vignettes, and the feature tour (kept in validation/, not shipped)
 rmds <- c(list.files("vignettes", pattern = "\\.Rmd$", full.names = TRUE),
-          "validation/feature_tour.Rmd")
+          "validation/feature_tour.Rmd", "validation/by_hand_check.Rmd")
 only <- commandArgs(trailingOnly = TRUE)
 if (length(only)) {
   rmds <- rmds[tools::file_path_sans_ext(basename(rmds)) %in% only]

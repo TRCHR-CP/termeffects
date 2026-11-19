@@ -5,6 +5,22 @@ user-facing summary; this log also covers decisions, validation and tooling.
 
 ---
 
+## 2026-11-19 — Checking termeffects by hand
+
+`validation/by_hand_check.Rmd` (rendered to `rendered_vignettes/`):
+recomputes every step of `term_predictions()` with plain R and no
+termeffects code, for an `lm` and a logistic `glm` with an rcs x linear
+interaction on `heartfailure`: grid and held values, design matrix,
+estimates, standard errors, pointwise limits, simulated critical value
+(multivariate t / normal draws via Cholesky, written independently of
+`.max_t_draws()`), band, and the transformation to probabilities. Grid
+identical; estimates, SEs and limits agree to ~1e-13; critical values
+2.933 vs 2.940 (linear) and 2.929 vs 2.924 (logistic), each termeffects
+value inside the 95% order-statistic interval of the by-hand simulation.
+Added to `validation/render_vignettes.R`.
+
+---
+
 ## 2026-11-17 — No website for now
 
 Brigitte decided the README and `rendered_vignettes/` are enough for the
