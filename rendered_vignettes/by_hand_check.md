@@ -266,7 +266,7 @@ max(abs(plogis(eta + c2 * se2) - te2$band.high))
 All differences except the critical values are rounding error (around
 1e-12 or smaller). The critical values differ only by simulation error,
 well below 1%, and termeffects’ value lies within the 95% interval of
-the by-hand simulation (steps 5). Other models (Cox, mixed, orm) use the
-same steps with their own design matrix and covariance;
+the by-hand simulation (step 5 of each part). Other models (Cox, mixed,
+orm) use the same steps with their own design matrix and covariance;
 `vignette("coverage_study")` checks them against the truth in
 simulations and against `rms::Predict()`.
